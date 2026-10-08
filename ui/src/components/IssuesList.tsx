@@ -737,20 +737,32 @@ export function IssuesList({
     enabled: boardQueryEnabled,
     placeholderData: (previousData: Record<string, number> | undefined) => previousData,
   });
+  const lastBoardColumnData = useRef<Record<string, Issue[]>>({});
+  useEffect(() => {
+    lastBoardColumnData.current = {};
+  }, [boardQueryScope]);
+  const boardColumnData = useMemo(
+    () => boardIssueStatuses.map((status, index) => {
+      const data = boardIssueQueries[index]?.data;
+      if (data) lastBoardColumnData.current[status] = data;
+      return data ?? lastBoardColumnData.current[status];
+    }),
+    [boardIssueQueries],
+  );
   const boardHasMore = useMemo(() => {
     const result: Record<string, boolean> = {};
     boardIssueStatuses.forEach((status, index) => {
-      const loaded = boardIssueQueries[index]?.data?.length ?? 0;
+      const loaded = boardColumnData[index]?.length ?? 0;
       result[status] = loaded >= ISSUE_BOARD_PAGE_SIZE * (boardPages[status] ?? 1);
     });
     return result;
-  }, [boardIssueQueries, boardPages]);
+  }, [boardColumnData, boardPages]);
   const loadMoreBoardColumn = useCallback((status: string) => {
     const query = boardIssueQueries[boardIssueStatuses.indexOf(status as IssueStatus)];
     if (!query || query.isFetching || !boardHasMore[status]) return;
     setBoardPages((prev) => ({ ...prev, [status]: (prev[status] ?? 1) + 1 }));
   }, [boardIssueQueries, boardHasMore]);
-  const boardIsLoading = boardQueryEnabled && boardIssueQueries.every((query) => query.isPending);
+  const boardIsLoading = boardQueryEnabled && boardColumnData.every((data) => !data);
   useEffect(() => {
     onViewModeChange?.(viewState.viewMode);
   }, [onViewModeChange, viewState.viewMode]);
@@ -953,15 +965,16 @@ export function IssuesList({
     if (viewState.viewMode !== "board" || searchWithinLoadedIssues) return null;
     const merged = new Map<string, Issue>();
     let isPending = false;
-    for (const query of boardIssueQueries) {
-      isPending ||= query.isPending;
-      for (const issue of query.data ?? []) {
+    boardIssueQueries.forEach((query, index) => {
+      const data = boardColumnData[index];
+      isPending ||= query.isPending && !data;
+      for (const issue of data ?? []) {
         merged.set(issue.id, issue);
       }
-    }
+    });
     if (merged.size > 0) return [...merged.values()];
     return isPending ? issues : [];
-  }, [boardIssueQueries, issues, searchWithinLoadedIssues, viewState.viewMode]);
+  }, [boardColumnData, boardIssueQueries, issues, searchWithinLoadedIssues, viewState.viewMode]);
 
   const filtered = useMemo(() => {
     const useRemoteSearch = normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues;

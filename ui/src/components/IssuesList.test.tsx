@@ -1029,9 +1029,14 @@ describe("IssuesList", () => {
       }),
     );
 
-    mockIssuesApi.list.mockImplementation((_companyId, filters) => {
-      if (filters?.status === "backlog") return Promise.resolve(backlogIssues.slice(0, filters.limit));
-      return Promise.resolve([]);
+    let releaseSecondPage: () => void = () => undefined;
+    const secondPage = new Promise<void>((resolve) => {
+      releaseSecondPage = resolve;
+    });
+    mockIssuesApi.list.mockImplementation(async (_companyId, filters) => {
+      if (filters?.status !== "backlog") return [];
+      if (filters.limit > 20) await secondPage;
+      return backlogIssues.slice(0, filters.limit);
     });
     mockIssuesApi.statusCounts.mockResolvedValue({ backlog: 45 });
 
@@ -1063,6 +1068,15 @@ describe("IssuesList", () => {
         status: "backlog",
         limit: 40,
       }));
+    });
+    expect(mockKanbanBoard.mock.calls.slice(-5).every(([props]) => props.issues.length === 20)).toBe(true);
+
+    await act(async () => {
+      releaseSecondPage();
+      await secondPage;
+    });
+
+    await waitForAssertion(() => {
       expect(mockKanbanBoard.mock.lastCall?.[0].issues).toHaveLength(40);
     });
 
