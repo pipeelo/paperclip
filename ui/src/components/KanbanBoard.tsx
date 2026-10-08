@@ -61,14 +61,28 @@ function ColumnLoadMore({ onVisible }: { onVisible: () => void }) {
   useEffect(() => {
     const element = ref.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
+    let visible = false;
+    let scrolled = false;
+    const tryLoad = () => {
+      if (visible && scrolled) onVisibleRef.current();
+    };
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onVisibleRef.current();
+        visible = entries.some((entry) => entry.isIntersecting);
+        tryLoad();
       },
       { rootMargin: "200px 0px" },
     );
+    const onScroll = () => {
+      scrolled = true;
+      tryLoad();
+    };
     observer.observe(element);
-    return () => observer.disconnect();
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("scroll", onScroll, { capture: true });
+    };
   }, []);
 
   return (
