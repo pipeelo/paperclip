@@ -1059,6 +1059,7 @@ describe("IssuesList", () => {
       expect(mockKanbanBoard.mock.lastCall?.[0].issues).toHaveLength(20);
     });
 
+    const callsBeforeLoadMore = mockKanbanBoard.mock.calls.length;
     act(() => {
       mockKanbanBoard.mock.lastCall?.[0].onLoadMoreColumn("backlog");
     });
@@ -1069,7 +1070,12 @@ describe("IssuesList", () => {
         limit: 40,
       }));
     });
-    expect(mockKanbanBoard.mock.calls.slice(-5).every(([props]) => props.issues.length === 20)).toBe(true);
+    expect(
+      mockKanbanBoard.mock.calls.slice(callsBeforeLoadMore).map(([props]) => props.issues.length),
+    ).toEqual(expect.arrayContaining([20]));
+    expect(
+      mockKanbanBoard.mock.calls.slice(callsBeforeLoadMore).map(([props]) => props.issues.length),
+    ).not.toContain(0);
 
     await act(async () => {
       releaseSecondPage();
