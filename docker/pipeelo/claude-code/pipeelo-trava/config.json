@@ -1,0 +1,8 @@
+{
+  "liberados": [{ "id": "J9XT4KD6s7WCoj8oASReR90DU2HKmujy", "nome": "André" }],
+  "responsavel": { "id": "J9XT4KD6s7WCoj8oASReR90DU2HKmujy", "nome": "André" },
+  "prefixoChat": "plugin:pipeelo.chat:session:",
+  "pastaChat": "/paperclip/.claude/chat",
+  "painelUrl": "https://pipeelo-paperclip.zhh0vo.easypanel.host",
+  "prefixo": "PIP"
+}

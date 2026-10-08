@@ -62,6 +62,10 @@ RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/cod
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+COPY docker/pipeelo/claude-code/managed-settings.json /etc/claude-code/managed-settings.json
+COPY docker/pipeelo/claude-code/pipeelo-trava/ /etc/claude-code/pipeelo-trava/
+RUN chown -R root:root /etc/claude-code   && chmod 755 /etc/claude-code /etc/claude-code/pipeelo-trava   && chmod 644 /etc/claude-code/managed-settings.json /etc/claude-code/pipeelo-trava/*   && node -e "require('/etc/claude-code/pipeelo-trava/trava.cjs')"
+
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \

@@ -43,6 +43,7 @@ import {
   ISSUE_LIST_DEFAULT_LIMIT,
   issueApprovalService,
   issueService,
+  issueTreeControlService,
   logActivity,
   syncInstructionsBundleConfigFromFilePath,
   workspaceOperationService,
@@ -3206,6 +3207,57 @@ export function agentRoutes(
     const existing = await heartbeat.getRun(runId);
     if (existing) {
       assertCompanyAccess(req, existing.companyId);
+    }
+    if (existing) {
+      try {
+        const [linha] = await db
+          .select({ issueId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'` })
+          .from(heartbeatRuns)
+          .where(eq(heartbeatRuns.id, runId));
+        const issueId = linha?.issueId;
+        if (issueId) {
+          const arvore = issueTreeControlService(db);
+          const actor = getActorInfo(req);
+          const pausa = await arvore.createHold(existing.companyId, issueId, {
+            mode: "pause",
+            reason: "Parado pelo botão Parar.",
+            releasePolicy: { strategy: "manual", note: "full_pause" },
+            actor: {
+              actorType: actor.actorType,
+              actorId: actor.actorId,
+              agentId: actor.agentId,
+              userId: actor.actorType === "user" ? actor.actorId : null,
+              runId: actor.runId,
+            },
+          });
+          await arvore.cancelUnclaimedWakeupsForTree(
+            existing.companyId,
+            issueId,
+            "Cancelled because the Stop button paused the issue tree",
+          );
+          const outrosRuns = [...new Set(pausa.preview.activeRuns.map((r) => r.id))].filter((id) => id !== runId);
+          await Promise.all(outrosRuns.map((id) => heartbeat.cancelRun(id).catch(() => null)));
+          await logActivity(db, {
+            companyId: existing.companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "issue.tree_hold_created",
+            entityType: "issue",
+            entityId: issueId,
+            details: {
+              holdId: pausa.hold.id,
+              mode: "pause",
+              source: "pipeelo_parar_tudo",
+              stoppedRunId: runId,
+              otherRunsCancelled: outrosRuns.length,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("[pipeelo_parar_tudo] falha ao pausar a arvore da tarefa", err);
+      }
     }
     const run = await heartbeat.cancelRun(runId);
 

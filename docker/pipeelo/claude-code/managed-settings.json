@@ -1,0 +1,13 @@
+{
+  "env": {
+    "NODE_OPTIONS": "--require /etc/claude-code/pipeelo-trava/fetch.cjs"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node /etc/claude-code/pipeelo-trava/hook.cjs", "timeout": 30 }]
+      }
+    ]
+  }
+}
