@@ -22,6 +22,16 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 |---|---|
 | Botão Parar pausa a tarefa e as filhas | `server/src/routes/agents.ts` (`pipeelo_parar_tudo`) |
 | Trava de tools: só quem está na lista muda tool, função ou environment da Pipeelo | `docker/pipeelo/claude-code/` + `Dockerfile` |
+| Claude Code, Codex e OpenCode com versão fixa | `Dockerfile` |
+| Quadro busca 20 tarefas por coluna e mais 20 quando a pessoa rola; total real no topo; coluna vazia aberta (só Cancelada recolhe) | `ui/src/components/KanbanBoard.tsx`, `IssuesList.tsx`, `pages/Issues.tsx` |
+| Total de tarefas por status: `GET /companies/:companyId/issues/status-counts` | `server/src/routes/issues.ts`, `issueService.countByStatus` |
+
+## Testes
+
+O PC local não aguenta o `pnpm install`. Rode os testes na imagem, no servidor:
+
+- Tela: `docker run --rm -e NODE_ENV=test --entrypoint sh -w /app/ui <imagem> -c 'npx vitest run <arquivos>'`
+- Servidor (banco embutido, não roda como root): `docker run --rm -u node -e HOME=/tmp -e NODE_ENV=test --entrypoint sh -w /app/server <imagem> -c 'npx vitest run <arquivos>'`
 
 ## Como trazer uma versão nova do original
 
