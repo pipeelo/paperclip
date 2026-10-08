@@ -60,6 +60,55 @@ if (!embeddedPostgresSupport.supported) {
   );
 }
 
+describeEmbeddedPostgres("issueService.countByStatus", () => {
+  let db!: ReturnType<typeof createDb>;
+  let svc!: ReturnType<typeof issueService>;
+  let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
+
+  beforeAll(async () => {
+    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issues-count-");
+    db = createDb(tempDb.connectionString);
+    svc = issueService(db);
+    await ensureIssueRelationsTable(db);
+  }, 20_000);
+
+  afterEach(async () => {
+    await db.delete(issues);
+    await db.delete(projects);
+    await db.delete(companies);
+  });
+
+  afterAll(async () => {
+    await tempDb?.cleanup();
+  });
+
+  it("counts visible issues per status with the same filters as the list", async () => {
+    const companyId = randomUUID();
+    const projectId = randomUUID();
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(projects).values({ id: projectId, companyId, name: "Board" });
+    await db.insert(issues).values([
+      { companyId, projectId, title: "Todo A", status: "todo", priority: "medium" },
+      { companyId, projectId, title: "Todo B", status: "todo", priority: "medium" },
+      { companyId, title: "Todo outside project", status: "todo", priority: "medium" },
+      { companyId, projectId, title: "Done", status: "done", priority: "medium" },
+      { companyId, projectId, title: "Hidden done", status: "done", priority: "medium", hiddenAt: new Date() },
+    ]);
+
+    expect(await svc.countByStatus(companyId)).toEqual({ todo: 3, done: 1 });
+    expect(await svc.countByStatus(companyId, { projectId })).toEqual({ todo: 2, done: 1 });
+    expect(await svc.countByStatus(companyId, { projectId, q: "Todo A" })).toEqual({ todo: 1 });
+
+    const todoList = await svc.list(companyId, { projectId, status: "todo", limit: 1 });
+    expect(todoList).toHaveLength(1);
+  });
+});
+
 describeEmbeddedPostgres("issueService.list participantAgentId", () => {
   let db!: ReturnType<typeof createDb>;
   let svc!: ReturnType<typeof issueService>;

@@ -20,6 +20,7 @@ const dialogState = vi.hoisted(() => ({
 const mockIssuesApi = vi.hoisted(() => ({
   list: vi.fn(),
   listLabels: vi.fn(),
+  statusCounts: vi.fn(),
 }));
 
 const mockKanbanBoard = vi.hoisted(() => vi.fn());
@@ -270,6 +271,7 @@ describe("IssuesList", () => {
     mockKanbanBoard.mockReset();
     mockIssuesApi.list.mockReset();
     mockIssuesApi.listLabels.mockReset();
+    mockIssuesApi.statusCounts.mockReset();
     mockAuthApi.getSession.mockReset();
     mockAccessApi.listMembers.mockReset();
     mockAccessApi.listUserDirectory.mockReset();
@@ -278,6 +280,7 @@ describe("IssuesList", () => {
     mockInstanceSettingsApi.getExperimental.mockReset();
     mockIssuesApi.list.mockResolvedValue([]);
     mockIssuesApi.listLabels.mockResolvedValue([]);
+    mockIssuesApi.statusCounts.mockResolvedValue({});
     mockAuthApi.getSession.mockResolvedValue({ user: null, session: null });
     mockAccessApi.listMembers.mockResolvedValue({ members: [], access: {} });
     mockAccessApi.listUserDirectory.mockResolvedValue({ users: [] });
@@ -987,12 +990,12 @@ describe("IssuesList", () => {
     await waitForAssertion(() => {
       expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
         status: "backlog",
-        limit: 200,
+        limit: 20,
         includeRoutineExecutions: true,
       }));
       expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
         status: "done",
-        limit: 200,
+        limit: 20,
         includeRoutineExecutions: true,
       }));
       expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -1011,13 +1014,13 @@ describe("IssuesList", () => {
     });
   });
 
-  it("shows a refinement hint when a board column hits its server cap", async () => {
+  it("loads 20 issues per board column and asks for 20 more when the column end is reached", async () => {
     localStorage.setItem(
       "paperclip:test-issues:company-1",
       JSON.stringify({ viewMode: "board" }),
     );
 
-    const cappedBacklogIssues = Array.from({ length: 200 }, (_, index) =>
+    const backlogIssues = Array.from({ length: 45 }, (_, index) =>
       createIssue({
         id: `issue-backlog-${index + 1}`,
         identifier: `PAP-${index + 1}`,
@@ -1027,9 +1030,10 @@ describe("IssuesList", () => {
     );
 
     mockIssuesApi.list.mockImplementation((_companyId, filters) => {
-      if (filters?.status === "backlog") return Promise.resolve(cappedBacklogIssues);
+      if (filters?.status === "backlog") return Promise.resolve(backlogIssues.slice(0, filters.limit));
       return Promise.resolve([]);
     });
+    mockIssuesApi.statusCounts.mockResolvedValue({ backlog: 45 });
 
     const { root } = renderWithQueryClient(
       <IssuesList
@@ -1043,14 +1047,29 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(container.textContent).toContain("Some board columns are showing up to 200 issues. Refine filters or search to reveal the rest.");
+      expect(mockKanbanBoard).toHaveBeenLastCalledWith(expect.objectContaining({
+        columnTotals: { backlog: 45 },
+        hasMoreByStatus: expect.objectContaining({ backlog: true, done: false }),
+      }));
+      expect(mockKanbanBoard.mock.lastCall?.[0].issues).toHaveLength(20);
+    });
+
+    act(() => {
+      mockKanbanBoard.mock.lastCall?.[0].onLoadMoreColumn("backlog");
+    });
+
+    await waitForAssertion(() => {
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
+        status: "backlog",
+        limit: 40,
+      }));
+      expect(mockKanbanBoard.mock.lastCall?.[0].issues).toHaveLength(40);
     });
 
     act(() => {
       root.unmount();
     });
   });
-
   it("caps the first paint for large issue lists", async () => {
     const manyIssues = Array.from({ length: 220 }, (_, index) =>
       createIssue({
