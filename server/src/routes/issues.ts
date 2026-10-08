@@ -1360,6 +1360,30 @@ export function issueRoutes(
     res.json(result);
   });
 
+  router.get("/companies/:companyId/issues/status-counts", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const ligado = (valor: unknown) => valor === "true" || valor === "1";
+    const counts = await svc.countByStatus(companyId, {
+      assigneeAgentId: req.query.assigneeAgentId as string | undefined,
+      participantAgentId: req.query.participantAgentId as string | undefined,
+      projectId: req.query.projectId as string | undefined,
+      workspaceId: req.query.workspaceId as string | undefined,
+      executionWorkspaceId: req.query.executionWorkspaceId as string | undefined,
+      parentId: req.query.parentId as string | undefined,
+      descendantOf: req.query.descendantOf as string | undefined,
+      labelId: req.query.labelId as string | undefined,
+      originKind: req.query.originKind as string | undefined,
+      originKindPrefix: req.query.originKindPrefix as string | undefined,
+      originId: req.query.originId as string | undefined,
+      includeRoutineExecutions: ligado(req.query.includeRoutineExecutions),
+      excludeRoutineExecutions: ligado(req.query.excludeRoutineExecutions),
+      includePluginOperations: ligado(req.query.includePluginOperations),
+      q: req.query.q as string | undefined,
+    });
+    res.json(counts);
+  });
+
   router.get("/companies/:companyId/issues", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);

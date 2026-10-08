@@ -120,6 +120,7 @@ export function Issues() {
   }, [setBreadcrumbs]);
 
   const issuePageSize = workspaceIdFilter ? WORKSPACE_FILTER_ISSUE_LIMIT : ISSUES_PAGE_SIZE;
+  const [viewMode, setViewMode] = useState<string | null>(null);
 
   const {
     data: issuePages,
@@ -149,7 +150,7 @@ export function Issues() {
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       getNextIssuesPageOffset(lastPage.length, lastPageParam, issuePageSize),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedCompanyId && viewMode !== null && viewMode !== "board",
     placeholderData: (previousData) => previousData,
   });
 
@@ -179,7 +180,7 @@ export function Issues() {
   return (
     <IssuesList
       issues={issues ?? []}
-      isLoading={isLoading}
+      isLoading={isLoading || viewMode === null}
       isLoadingMoreIssues={isFetchingNextPage}
       error={error as Error | null}
       agents={agents}
@@ -191,6 +192,7 @@ export function Issues() {
       initialWorkspaces={initialWorkspaces.length > 0 ? initialWorkspaces : undefined}
       initialSearch={syncedSearch}
       onSearchChange={handleSearchChange}
+      onViewModeChange={setViewMode}
       enableRoutineVisibilityFilter
       hasMoreIssues={hasMoreServerIssues}
       onLoadMoreIssues={loadMoreServerIssues}

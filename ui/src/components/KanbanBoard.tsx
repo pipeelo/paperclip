@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router";
 import {
   DndContext,
@@ -47,7 +47,35 @@ interface KanbanBoardProps {
   issues: Issue[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
+  columnTotals?: Record<string, number>;
+  hasMoreByStatus?: Record<string, boolean>;
+  onLoadMoreColumn?: (status: string) => void;
   onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
+}
+
+function ColumnLoadMore({ onVisible }: { onVisible: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onVisibleRef.current();
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="py-2 text-center text-xs text-muted-foreground/60">
+      Loading more…
+    </div>
+  );
 }
 
 /* ── Droppable Column ── */
@@ -57,15 +85,21 @@ function KanbanColumn({
   issues,
   agents,
   liveIssueIds,
+  total,
+  hasMore,
+  onLoadMore,
 }: {
   status: string;
   issues: Issue[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
+  total?: number;
+  hasMore?: boolean;
+  onLoadMore?: (status: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
-  const isEmpty = issues.length === 0;
+  const isEmpty = issues.length === 0 && status === "cancelled";
 
   return (
     <div className={`flex flex-col shrink-0 transition-[width,min-width] ${isEmpty && !isOver ? "min-w-[48px] w-[48px]" : "min-w-[260px] w-[260px]"}`}>
@@ -77,7 +111,7 @@ function KanbanColumn({
               {statusLabel(status)}
             </span>
             <span className="text-xs text-muted-foreground/60 ml-auto tabular-nums">
-              {issues.length}
+              {total ?? issues.length}
             </span>
           </>
         )}
@@ -101,6 +135,9 @@ function KanbanColumn({
             />
           ))}
         </SortableContext>
+        {hasMore && onLoadMore ? (
+          <ColumnLoadMore key={issues.length} onVisible={() => onLoadMore(status)} />
+        ) : null}
       </div>
     </div>
   );
@@ -203,6 +240,9 @@ export function KanbanBoard({
   issues,
   agents,
   liveIssueIds,
+  columnTotals,
+  hasMoreByStatus,
+  onLoadMoreColumn,
   onUpdateIssue,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -280,6 +320,9 @@ export function KanbanBoard({
             issues={columnIssues[status] ?? []}
             agents={agents}
             liveIssueIds={liveIssueIds}
+            total={columnTotals ? (columnTotals[status] ?? 0) : undefined}
+            hasMore={hasMoreByStatus?.[status]}
+            onLoadMore={onLoadMoreColumn}
           />
         ))}
       </div>

@@ -2222,120 +2222,164 @@ export function issueService(db: Db) {
     });
   }
 
+  async function issueListConditions(companyId: string, filters?: IssueFilters) {
+    const conditions = [eq(issues.companyId, companyId)];
+    const limit = typeof filters?.limit === "number" && Number.isFinite(filters.limit)
+      ? Math.max(1, Math.floor(filters.limit))
+      : undefined;
+    const offset = typeof filters?.offset === "number" && Number.isFinite(filters.offset)
+      ? Math.max(0, Math.floor(filters.offset))
+      : 0;
+    const touchedByUserId = filters?.touchedByUserId?.trim() || undefined;
+    const inboxArchivedByUserId = filters?.inboxArchivedByUserId?.trim() || undefined;
+    const unreadForUserId = filters?.unreadForUserId?.trim() || undefined;
+    const contextUserId = unreadForUserId ?? touchedByUserId ?? inboxArchivedByUserId;
+    const includeBlockedBy = filters?.includeBlockedBy === true;
+    const rawSearch = filters?.q?.trim() ?? "";
+    const hasSearch = rawSearch.length > 0;
+    const escapedSearch = hasSearch ? escapeLikePattern(rawSearch) : "";
+    const startsWithPattern = `${escapedSearch}%`;
+    const containsPattern = `%${escapedSearch}%`;
+    const titleStartsWithMatch = sql<boolean>`${issues.title} ILIKE ${startsWithPattern} ESCAPE '\\'`;
+    const titleContainsMatch = sql<boolean>`${issues.title} ILIKE ${containsPattern} ESCAPE '\\'`;
+    const identifierStartsWithMatch = sql<boolean>`${issues.identifier} ILIKE ${startsWithPattern} ESCAPE '\\'`;
+    const identifierContainsMatch = sql<boolean>`${issues.identifier} ILIKE ${containsPattern} ESCAPE '\\'`;
+    const descriptionContainsMatch = sql<boolean>`${issues.description} ILIKE ${containsPattern} ESCAPE '\\'`;
+    const commentContainsMatch = sql<boolean>`
+      EXISTS (
+        SELECT 1
+        FROM ${issueComments}
+        WHERE ${issueComments.issueId} = ${issues.id}
+          AND ${issueComments.companyId} = ${companyId}
+          AND ${issueComments.body} ILIKE ${containsPattern} ESCAPE '\\'
+      )
+    `;
+    if (filters?.descendantOf) {
+      conditions.push(sql<boolean>`
+        ${issues.id} IN (
+          WITH RECURSIVE descendants(id) AS (
+            SELECT ${issues.id}
+            FROM ${issues}
+            WHERE ${issues.companyId} = ${companyId}
+              AND ${issues.parentId} = ${filters.descendantOf}
+            UNION
+            SELECT ${issues.id}
+            FROM ${issues}
+            JOIN descendants ON ${issues.parentId} = descendants.id
+            WHERE ${issues.companyId} = ${companyId}
+          )
+          SELECT id FROM descendants
+        )
+      `);
+    }
+    if (filters?.status) {
+      const statuses = filters.status.split(",").map((s) => s.trim());
+      conditions.push(statuses.length === 1 ? eq(issues.status, statuses[0]) : inArray(issues.status, statuses));
+    }
+    if (filters?.assigneeAgentId) {
+      conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
+    }
+    if (filters?.participantAgentId) {
+      conditions.push(participatedByAgentCondition(companyId, filters.participantAgentId));
+    }
+    if (filters?.assigneeUserId) {
+      conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
+    }
+    if (touchedByUserId) {
+      conditions.push(touchedByUserCondition(companyId, touchedByUserId));
+    }
+    if (inboxArchivedByUserId) {
+      conditions.push(inboxVisibleForUserCondition(companyId, inboxArchivedByUserId));
+    }
+    if (unreadForUserId) {
+      conditions.push(unreadForUserCondition(companyId, unreadForUserId));
+    }
+    if (filters?.projectId) conditions.push(eq(issues.projectId, filters.projectId));
+    if (filters?.workspaceId) {
+      conditions.push(or(
+        eq(issues.executionWorkspaceId, filters.workspaceId),
+        eq(issues.projectWorkspaceId, filters.workspaceId),
+      )!);
+    }
+    if (filters?.executionWorkspaceId) {
+      conditions.push(eq(issues.executionWorkspaceId, filters.executionWorkspaceId));
+    }
+    if (filters?.parentId) conditions.push(eq(issues.parentId, filters.parentId));
+    if (filters?.originKind) conditions.push(eq(issues.originKind, filters.originKind));
+    if (filters?.originKindPrefix) conditions.push(like(issues.originKind, `${filters.originKindPrefix}%`));
+    if (filters?.originId) conditions.push(eq(issues.originId, filters.originId));
+    if (!shouldIncludePluginOperationIssues(filters)) {
+      conditions.push(nonPluginOperationIssueCondition());
+    }
+    if (filters?.labelId) {
+      const labeledIssueIds = await db
+        .select({ issueId: issueLabels.issueId })
+        .from(issueLabels)
+        .where(and(eq(issueLabels.companyId, companyId), eq(issueLabels.labelId, filters.labelId)));
+      if (labeledIssueIds.length === 0) return null;
+      conditions.push(inArray(issues.id, labeledIssueIds.map((row) => row.issueId)));
+    }
+    if (hasSearch) {
+      conditions.push(
+        or(
+          titleContainsMatch,
+          identifierContainsMatch,
+          descriptionContainsMatch,
+          commentContainsMatch,
+        )!,
+      );
+    }
+    if (filters?.excludeRoutineExecutions && !filters?.originKind && !filters?.originId) {
+      conditions.push(ne(issues.originKind, "routine_execution"));
+    }
+    conditions.push(isNull(issues.hiddenAt));
+    return {
+      conditions,
+      limit,
+      offset,
+      contextUserId,
+      includeBlockedBy,
+      hasSearch,
+      titleStartsWithMatch,
+      titleContainsMatch,
+      identifierStartsWithMatch,
+      identifierContainsMatch,
+      descriptionContainsMatch,
+      commentContainsMatch,
+    };
+  }
+
   return {
     clearExecutionRunIfTerminal,
 
+    countByStatus: async (companyId: string, filters?: IssueFilters): Promise<Record<string, number>> => {
+      const built = await issueListConditions(companyId, filters);
+      if (!built) return {};
+      const rows = await db
+        .select({ status: issues.status, count: sql<number>`count(*)::int` })
+        .from(issues)
+        .where(and(...built.conditions))
+        .groupBy(issues.status);
+      return Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]));
+    },
+
     list: async (companyId: string, filters?: IssueFilters) => {
-      const conditions = [eq(issues.companyId, companyId)];
-      const limit = typeof filters?.limit === "number" && Number.isFinite(filters.limit)
-        ? Math.max(1, Math.floor(filters.limit))
-        : undefined;
-      const offset = typeof filters?.offset === "number" && Number.isFinite(filters.offset)
-        ? Math.max(0, Math.floor(filters.offset))
-        : 0;
-      const touchedByUserId = filters?.touchedByUserId?.trim() || undefined;
-      const inboxArchivedByUserId = filters?.inboxArchivedByUserId?.trim() || undefined;
-      const unreadForUserId = filters?.unreadForUserId?.trim() || undefined;
-      const contextUserId = unreadForUserId ?? touchedByUserId ?? inboxArchivedByUserId;
-      const includeBlockedBy = filters?.includeBlockedBy === true;
-      const rawSearch = filters?.q?.trim() ?? "";
-      const hasSearch = rawSearch.length > 0;
-      const escapedSearch = hasSearch ? escapeLikePattern(rawSearch) : "";
-      const startsWithPattern = `${escapedSearch}%`;
-      const containsPattern = `%${escapedSearch}%`;
-      const titleStartsWithMatch = sql<boolean>`${issues.title} ILIKE ${startsWithPattern} ESCAPE '\\'`;
-      const titleContainsMatch = sql<boolean>`${issues.title} ILIKE ${containsPattern} ESCAPE '\\'`;
-      const identifierStartsWithMatch = sql<boolean>`${issues.identifier} ILIKE ${startsWithPattern} ESCAPE '\\'`;
-      const identifierContainsMatch = sql<boolean>`${issues.identifier} ILIKE ${containsPattern} ESCAPE '\\'`;
-      const descriptionContainsMatch = sql<boolean>`${issues.description} ILIKE ${containsPattern} ESCAPE '\\'`;
-      const commentContainsMatch = sql<boolean>`
-        EXISTS (
-          SELECT 1
-          FROM ${issueComments}
-          WHERE ${issueComments.issueId} = ${issues.id}
-            AND ${issueComments.companyId} = ${companyId}
-            AND ${issueComments.body} ILIKE ${containsPattern} ESCAPE '\\'
-        )
-      `;
-      if (filters?.descendantOf) {
-        conditions.push(sql<boolean>`
-          ${issues.id} IN (
-            WITH RECURSIVE descendants(id) AS (
-              SELECT ${issues.id}
-              FROM ${issues}
-              WHERE ${issues.companyId} = ${companyId}
-                AND ${issues.parentId} = ${filters.descendantOf}
-              UNION
-              SELECT ${issues.id}
-              FROM ${issues}
-              JOIN descendants ON ${issues.parentId} = descendants.id
-              WHERE ${issues.companyId} = ${companyId}
-            )
-            SELECT id FROM descendants
-          )
-        `);
-      }
-      if (filters?.status) {
-        const statuses = filters.status.split(",").map((s) => s.trim());
-        conditions.push(statuses.length === 1 ? eq(issues.status, statuses[0]) : inArray(issues.status, statuses));
-      }
-      if (filters?.assigneeAgentId) {
-        conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
-      }
-      if (filters?.participantAgentId) {
-        conditions.push(participatedByAgentCondition(companyId, filters.participantAgentId));
-      }
-      if (filters?.assigneeUserId) {
-        conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
-      }
-      if (touchedByUserId) {
-        conditions.push(touchedByUserCondition(companyId, touchedByUserId));
-      }
-      if (inboxArchivedByUserId) {
-        conditions.push(inboxVisibleForUserCondition(companyId, inboxArchivedByUserId));
-      }
-      if (unreadForUserId) {
-        conditions.push(unreadForUserCondition(companyId, unreadForUserId));
-      }
-      if (filters?.projectId) conditions.push(eq(issues.projectId, filters.projectId));
-      if (filters?.workspaceId) {
-        conditions.push(or(
-          eq(issues.executionWorkspaceId, filters.workspaceId),
-          eq(issues.projectWorkspaceId, filters.workspaceId),
-        )!);
-      }
-      if (filters?.executionWorkspaceId) {
-        conditions.push(eq(issues.executionWorkspaceId, filters.executionWorkspaceId));
-      }
-      if (filters?.parentId) conditions.push(eq(issues.parentId, filters.parentId));
-      if (filters?.originKind) conditions.push(eq(issues.originKind, filters.originKind));
-      if (filters?.originKindPrefix) conditions.push(like(issues.originKind, `${filters.originKindPrefix}%`));
-      if (filters?.originId) conditions.push(eq(issues.originId, filters.originId));
-      if (!shouldIncludePluginOperationIssues(filters)) {
-        conditions.push(nonPluginOperationIssueCondition());
-      }
-      if (filters?.labelId) {
-        const labeledIssueIds = await db
-          .select({ issueId: issueLabels.issueId })
-          .from(issueLabels)
-          .where(and(eq(issueLabels.companyId, companyId), eq(issueLabels.labelId, filters.labelId)));
-        if (labeledIssueIds.length === 0) return [];
-        conditions.push(inArray(issues.id, labeledIssueIds.map((row) => row.issueId)));
-      }
-      if (hasSearch) {
-        conditions.push(
-          or(
-            titleContainsMatch,
-            identifierContainsMatch,
-            descriptionContainsMatch,
-            commentContainsMatch,
-          )!,
-        );
-      }
-      if (filters?.excludeRoutineExecutions && !filters?.originKind && !filters?.originId) {
-        conditions.push(ne(issues.originKind, "routine_execution"));
-      }
-      conditions.push(isNull(issues.hiddenAt));
+      const built = await issueListConditions(companyId, filters);
+      if (!built) return [];
+      const {
+        conditions,
+        limit,
+        offset,
+        contextUserId,
+        includeBlockedBy,
+        hasSearch,
+        titleStartsWithMatch,
+        titleContainsMatch,
+        identifierStartsWithMatch,
+        identifierContainsMatch,
+        descriptionContainsMatch,
+        commentContainsMatch,
+      } = built;
 
       const priorityOrder = sql`CASE ${issues.priority} WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`;
       const searchOrder = sql<number>`

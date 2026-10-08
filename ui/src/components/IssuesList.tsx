@@ -70,7 +70,7 @@ import { isSuccessfulRunHandoffRequired } from "../lib/successful-run-handoff";
 import { ISSUE_STATUSES, type Issue, type IssueStatus, type Project } from "@paperclipai/shared";
 const ISSUE_SEARCH_DEBOUNCE_MS = 250;
 const ISSUE_SEARCH_RESULT_LIMIT = 200;
-const ISSUE_BOARD_COLUMN_RESULT_LIMIT = 200;
+const ISSUE_BOARD_PAGE_SIZE = 20;
 const INITIAL_ISSUE_ROW_RENDER_LIMIT = 100;
 const ISSUE_ROW_RENDER_BATCH_SIZE = 150;
 const ISSUE_SCROLL_LOAD_THRESHOLD_PX = 320;
@@ -377,6 +377,7 @@ interface IssuesListProps {
   issueBadgeById?: Map<string, string>;
   onLoadMoreIssues?: () => void;
   onSearchChange?: (search: string) => void;
+  onViewModeChange?: (viewMode: IssueViewState["viewMode"]) => void;
   onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
 }
 
@@ -584,6 +585,7 @@ export function IssuesList({
   issueBadgeById,
   onLoadMoreIssues,
   onSearchChange,
+  onViewModeChange,
   onUpdateIssue,
 }: IssuesListProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -684,6 +686,13 @@ export function IssuesList({
     enabled: !!selectedCompanyId && normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues,
     placeholderData: (previousData) => previousData,
   });
+  const boardQueryEnabled = !!selectedCompanyId && viewState.viewMode === "board" && !searchWithinLoadedIssues;
+  const boardQueryScope = JSON.stringify([normalizedIssueSearch, projectId ?? null, searchFilters ?? {}]);
+  const [boardPages, setBoardPages] = useState<Record<string, number>>({});
+  useEffect(() => {
+    setBoardPages({});
+  }, [boardQueryScope]);
+  const boardColumnLimit = (status: string) => ISSUE_BOARD_PAGE_SIZE * (boardPages[status] ?? 1);
   const boardIssueQueries = useQueries({
     queries: boardIssueStatuses.map((status) => ({
       queryKey: [
@@ -693,7 +702,7 @@ export function IssuesList({
         normalizedIssueSearch,
         projectId ?? "__all-projects__",
         searchFilters ?? {},
-        ISSUE_BOARD_COLUMN_RESULT_LIMIT,
+        boardColumnLimit(status),
         enableRoutineVisibilityFilter ? "with-routine-executions" : "without-routine-executions",
       ],
       queryFn: () =>
@@ -702,13 +711,49 @@ export function IssuesList({
           ...(normalizedIssueSearch.length > 0 ? { q: normalizedIssueSearch } : {}),
           projectId,
           status,
-          limit: ISSUE_BOARD_COLUMN_RESULT_LIMIT,
+          limit: boardColumnLimit(status),
           ...(enableRoutineVisibilityFilter ? { includeRoutineExecutions: true } : {}),
         }),
-      enabled: !!selectedCompanyId && viewState.viewMode === "board" && !searchWithinLoadedIssues,
+      enabled: boardQueryEnabled,
       placeholderData: (previousData: Issue[] | undefined) => previousData,
     })),
   });
+  const { data: boardStatusCounts } = useQuery({
+    queryKey: [
+      ...queryKeys.issues.list(selectedCompanyId ?? "__no-company__"),
+      "board-status-counts",
+      normalizedIssueSearch,
+      projectId ?? "__all-projects__",
+      searchFilters ?? {},
+      enableRoutineVisibilityFilter ? "with-routine-executions" : "without-routine-executions",
+    ],
+    queryFn: () =>
+      issuesApi.statusCounts(selectedCompanyId!, {
+        ...searchFilters,
+        ...(normalizedIssueSearch.length > 0 ? { q: normalizedIssueSearch } : {}),
+        projectId,
+        ...(enableRoutineVisibilityFilter ? { includeRoutineExecutions: true } : {}),
+      }),
+    enabled: boardQueryEnabled,
+    placeholderData: (previousData: Record<string, number> | undefined) => previousData,
+  });
+  const boardHasMore = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    boardIssueStatuses.forEach((status, index) => {
+      const loaded = boardIssueQueries[index]?.data?.length ?? 0;
+      result[status] = loaded >= ISSUE_BOARD_PAGE_SIZE * (boardPages[status] ?? 1);
+    });
+    return result;
+  }, [boardIssueQueries, boardPages]);
+  const loadMoreBoardColumn = useCallback((status: string) => {
+    const query = boardIssueQueries[boardIssueStatuses.indexOf(status as IssueStatus)];
+    if (!query || query.isFetching || !boardHasMore[status]) return;
+    setBoardPages((prev) => ({ ...prev, [status]: (prev[status] ?? 1) + 1 }));
+  }, [boardIssueQueries, boardHasMore]);
+  const boardIsLoading = boardQueryEnabled && boardIssueQueries.every((query) => query.isPending);
+  useEffect(() => {
+    onViewModeChange?.(viewState.viewMode);
+  }, [onViewModeChange, viewState.viewMode]);
   const { data: executionWorkspaces = [] } = useQuery({
     queryKey: selectedCompanyId
       ? queryKeys.executionWorkspaces.summaryList(selectedCompanyId)
@@ -917,13 +962,6 @@ export function IssuesList({
     if (merged.size > 0) return [...merged.values()];
     return isPending ? issues : [];
   }, [boardIssueQueries, issues, searchWithinLoadedIssues, viewState.viewMode]);
-  const boardColumnLimitReached = useMemo(
-    () =>
-      viewState.viewMode === "board" &&
-      !searchWithinLoadedIssues &&
-      boardIssueQueries.some((query) => (query.data?.length ?? 0) === ISSUE_BOARD_COLUMN_RESULT_LIMIT),
-    [boardIssueQueries, searchWithinLoadedIssues, viewState.viewMode],
-  );
 
   const filtered = useMemo(() => {
     const useRemoteSearch = normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues;
@@ -1428,16 +1466,11 @@ export function IssuesList({
         </div>
       </div>
 
-      {isLoading && <PageSkeleton variant="issues-list" />}
+      {(boardQueryEnabled ? boardIsLoading : isLoading) && <PageSkeleton variant="issues-list" />}
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       {!searchWithinLoadedIssues && normalizedIssueSearch.length > 0 && searchedIssues.length === ISSUE_SEARCH_RESULT_LIMIT && (
         <p className="text-xs text-muted-foreground">
           Showing up to {ISSUE_SEARCH_RESULT_LIMIT} matches. Refine the search to narrow further.
-        </p>
-      )}
-      {boardColumnLimitReached && (
-        <p className="text-xs text-muted-foreground">
-          Some board columns are showing up to {ISSUE_BOARD_COLUMN_RESULT_LIMIT} issues. Refine filters or search to reveal the rest.
         </p>
       )}
       {!isLoading && filtered.length === 0 && viewState.viewMode === "list" && (
@@ -1454,6 +1487,9 @@ export function IssuesList({
           issues={filtered}
           agents={agents}
           liveIssueIds={liveIssueIds}
+          columnTotals={boardQueryEnabled && activeFilterCount === 0 ? boardStatusCounts : undefined}
+          hasMoreByStatus={boardQueryEnabled ? boardHasMore : undefined}
+          onLoadMoreColumn={boardQueryEnabled ? loadMoreBoardColumn : undefined}
           onUpdateIssue={onUpdateIssue}
         />
       ) : (
