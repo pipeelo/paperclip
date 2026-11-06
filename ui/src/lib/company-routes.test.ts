@@ -32,6 +32,7 @@ describe("company routes", () => {
     expect(isBoardPathWithoutPrefix("/search")).toBe(true);
     expect(extractCompanyPrefixFromPath("/search")).toBeNull();
     expect(applyCompanyPrefix("/search", "PAP")).toBe("/PAP/search");
+    expect(applyCompanyPrefix("/vigias", "PAP")).toBe("/PAP/vigias");
     expect(applyCompanyPrefix("/search?q=hello%20world", "PAP")).toBe("/PAP/search?q=hello%20world");
     expect(toCompanyRelativePath("/PAP/search?q=foo")).toBe("/search?q=foo");
   });

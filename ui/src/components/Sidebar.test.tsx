@@ -7,10 +7,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "./Sidebar";
 
-const mockHeartbeatsApi = vi.hoisted(() => ({
-  liveRunsForCompany: vi.fn(),
-}));
-
 const mockInstanceSettingsApi = vi.hoisted(() => ({
   getExperimental: vi.fn(),
 }));
@@ -52,10 +48,6 @@ vi.mock("../context/SidebarContext", () => ({
     isMobile: false,
     setSidebarOpen: vi.fn(),
   }),
-}));
-
-vi.mock("../api/heartbeats", () => ({
-  heartbeatsApi: mockHeartbeatsApi,
 }));
 
 vi.mock("../api/instanceSettings", () => ({
@@ -116,7 +108,6 @@ describe("Sidebar", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -133,6 +124,20 @@ describe("Sidebar", () => {
     expect(topSearchLink?.getAttribute("href")).toBe("/search");
     const workLinks = [...container.querySelectorAll("nav a")].map((anchor) => anchor.textContent?.trim());
     expect(workLinks).not.toContain("Search");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("shows Vigias right above Activity and no Dashboard link", async () => {
+    mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false });
+    const root = await renderSidebar();
+
+    const labels = [...container.querySelectorAll("nav a")].map((anchor) => anchor.textContent?.trim());
+    expect(labels).not.toContain("Dashboard");
+    expect(labels).toContain("Vigias");
+    expect(labels.indexOf("Activity") - labels.indexOf("Vigias")).toBe(1);
 
     await act(async () => {
       root.unmount();

@@ -22,7 +22,6 @@ import {
   Bot,
   Hexagon,
   Target,
-  LayoutDashboard,
   Inbox,
   DollarSign,
   History,
@@ -195,10 +194,6 @@ export function CommandPalette() {
         <CommandSeparator />
 
         <CommandGroup heading="Pages">
-          <CommandItem onSelect={() => go("/dashboard")}>
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            Dashboard
-          </CommandItem>
           <CommandItem onSelect={() => go("/inbox")}>
             <Inbox className="mr-2 h-4 w-4" />
             Inbox

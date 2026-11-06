@@ -24,6 +24,8 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 | Trava de tools: só quem está na lista muda tool, função ou environment da Pipeelo | `docker/pipeelo/claude-code/` + `Dockerfile` |
 | Claude Code, Codex e OpenCode com versão fixa | `Dockerfile` |
 | Quadro busca 20 tarefas por coluna e mais 20 quando a pessoa rola; total real no topo; coluna vazia aberta (só Cancelada recolhe) | `ui/src/components/KanbanBoard.tsx`, `IssuesList.tsx`, `pages/Issues.tsx` |
+| Sem Dashboard: `/dashboard` e a entrada abrem Issues. O arquivo `pages/Dashboard.tsx` fica para não dar conflito ao juntar o original | `ui/src/App.tsx`, `Sidebar.tsx`, `MobileBottomNav.tsx`, `CommandPalette.tsx` |
+| Item Vigias acima de Activity: abre a página `vigias` do plugin `pipeelo.porteiro` | `ui/src/components/Sidebar.tsx`, `lib/company-routes.ts` |
 | Total de tarefas por status: `GET /companies/:companyId/issues/status-counts` | `server/src/routes/issues.ts`, `issueService.countByStatus` |
 
 ## Testes
