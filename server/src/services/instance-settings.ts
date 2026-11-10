@@ -20,6 +20,7 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   const parsed = instanceGeneralSettingsSchema.safeParse(raw ?? {});
   if (parsed.success) {
     return {
+      boardColumns: parsed.data.boardColumns ?? [],
       censorUsernameInLogs: parsed.data.censorUsernameInLogs ?? false,
       keyboardShortcuts: parsed.data.keyboardShortcuts ?? false,
       feedbackDataSharingPreference:
@@ -28,6 +29,7 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
     };
   }
   return {
+    boardColumns: [],
     censorUsernameInLogs: false,
     keyboardShortcuts: false,
     feedbackDataSharingPreference: DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,

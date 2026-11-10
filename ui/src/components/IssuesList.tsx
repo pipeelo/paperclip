@@ -62,6 +62,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { CircleDot, Plus, ArrowUpDown, Layers, Check, ChevronRight, List, ListTree, Columns3, User, Search, CircleSlash2 } from "lucide-react";
 import { KanbanBoard } from "./KanbanBoard";
+import { BoardColumnsEditor } from "./BoardColumnsEditor";
 import { buildIssueTree, countDescendants } from "../lib/issue-tree";
 import { buildSubIssueDefaultsForViewer } from "../lib/subIssueDefaults";
 import { statusBadge } from "../lib/status-colors";
@@ -1061,6 +1062,19 @@ export function IssuesList({
     enabled: !!selectedCompanyId,
   });
 
+  const { data: generalSettings } = useQuery({
+    queryKey: queryKeys.instance.generalSettings,
+    queryFn: () => instanceSettingsApi.getGeneral(),
+    retry: false,
+  });
+  const customBoardColumns = useMemo(
+    () => (generalSettings?.boardColumns ?? []).flatMap((column) => {
+      const label = labels?.find((candidate) => candidate.name === column.name);
+      return label ? [{ name: column.name, status: column.status, labelId: label.id }] : [];
+    }),
+    [generalSettings?.boardColumns, labels],
+  );
+
   const activeFilterCount = countActiveIssueFilters(viewState, enableRoutineVisibilityFilter);
 
   const groupedContent = useMemo(() => {
@@ -1366,6 +1380,10 @@ export function IssuesList({
             </button>
           </div>
 
+          {viewState.viewMode === "board" && selectedCompanyId ? (
+            <BoardColumnsEditor companyId={selectedCompanyId} />
+          ) : null}
+
           {viewState.viewMode === "list" && (
             <Button
               type="button"
@@ -1502,6 +1520,7 @@ export function IssuesList({
       {viewState.viewMode === "board" ? (
         <KanbanBoard
           issues={filtered}
+          customColumns={customBoardColumns}
           agents={agents}
           liveIssueIds={liveIssueIds}
           columnTotals={boardQueryEnabled && activeFilterCount === 0 ? boardStatusCounts : undefined}

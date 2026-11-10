@@ -1,3 +1,4 @@
+import type { IssueStatus } from "../constants.js";
 import type { FeedbackDataSharingPreference } from "./feedback.js";
 
 export const DAILY_RETENTION_PRESETS = [3, 7, 14] as const;
@@ -19,7 +20,13 @@ export const DEFAULT_BACKUP_RETENTION: BackupRetentionPolicy = {
   monthlyMonths: 1,
 };
 
+export interface BoardColumn {
+  name: string;
+  status: IssueStatus;
+}
+
 export interface InstanceGeneralSettings {
+  boardColumns?: BoardColumn[];
   censorUsernameInLogs: boolean;
   keyboardShortcuts: boolean;
   feedbackDataSharingPreference: FeedbackDataSharingPreference;

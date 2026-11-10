@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ISSUE_STATUSES } from "../constants.js";
 import { DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE } from "../types/feedback.js";
 import {
   DAILY_RETENTION_PRESETS,
@@ -24,7 +25,13 @@ export const backupRetentionPolicySchema = z.object({
   monthlyMonths: presetSchema(MONTHLY_RETENTION_PRESETS, "monthlyMonths").default(DEFAULT_BACKUP_RETENTION.monthlyMonths),
 });
 
+export const boardColumnSchema = z.object({
+  name: z.string().trim().min(1).max(48),
+  status: z.enum(ISSUE_STATUSES),
+}).strict();
+
 export const instanceGeneralSettingsSchema = z.object({
+  boardColumns: z.array(boardColumnSchema).max(20).default([]),
   censorUsernameInLogs: z.boolean().default(false),
   keyboardShortcuts: z.boolean().default(false),
   feedbackDataSharingPreference: feedbackDataSharingPreferenceSchema.default(

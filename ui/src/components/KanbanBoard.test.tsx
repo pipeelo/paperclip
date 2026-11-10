@@ -99,4 +99,33 @@ describe("KanbanBoard", () => {
     expect(columnOf(container, "PAP-1")).toBe("todo");
     expect(totalOf(container, "todo")).toBe("1");
   });
+
+  it("shows a custom column after its base status and moves cards by label", () => {
+    const onUpdateIssue = vi.fn(() => new Promise<void>(() => undefined));
+    const waiting = { ...issue, id: "issue-2", identifier: "PAP-2", status: "blocked", labelIds: ["label-1", "label-9"] } as unknown as Issue;
+    const titleOf = (identifier: string) =>
+      container.querySelector(`a[href="/issues/${identifier}"]`)?.closest("div.flex.flex-col.shrink-0")?.querySelector("span.uppercase")?.textContent;
+
+    act(() => {
+      root.render(
+        <KanbanBoard
+          issues={[issue, waiting]}
+          customColumns={[{ name: "Aguardando cliente", status: "blocked", labelId: "label-1" }]}
+          columnTotals={{ todo: 1, blocked: 1 }}
+          onUpdateIssue={onUpdateIssue}
+        />,
+      );
+    });
+    expect(titleOf("PAP-2")).toBe("Aguardando cliente");
+    expect(titleOf("PAP-1")).toBe("Todo");
+    expect(totalOf(container, "blocked")).toBe("0");
+
+    act(() => dnd.onDragEnd?.({ active: { id: "issue-1" }, over: { id: "label:label-1" } }));
+    expect(onUpdateIssue).toHaveBeenLastCalledWith("issue-1", { status: "blocked", labelIds: ["label-1"] });
+    expect(titleOf("PAP-1")).toBe("Aguardando cliente");
+
+    act(() => dnd.onDragEnd?.({ active: { id: "issue-2" }, over: { id: "blocked" } }));
+    expect(onUpdateIssue).toHaveBeenLastCalledWith("issue-2", { labelIds: ["label-9"] });
+    expect(titleOf("PAP-2")).toBe("Blocked");
+  });
 });

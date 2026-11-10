@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router";
 import {
   DndContext,
@@ -43,8 +43,27 @@ interface Agent {
   name: string;
 }
 
+export interface KanbanCustomColumn {
+  name: string;
+  status: string;
+  labelId: string;
+}
+
+interface BoardColumn {
+  id: string;
+  status: string;
+  name?: string;
+  labelId?: string;
+}
+
+interface PendingMove {
+  status: string;
+  labelIds: string[];
+}
+
 interface KanbanBoardProps {
   issues: Issue[];
+  customColumns?: KanbanCustomColumn[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
   columnTotals?: Record<string, number>;
@@ -95,7 +114,9 @@ function ColumnLoadMore({ onVisible }: { onVisible: () => void }) {
 /* ── Droppable Column ── */
 
 function KanbanColumn({
+  id,
   status,
+  title,
   issues,
   agents,
   liveIssueIds,
@@ -103,7 +124,9 @@ function KanbanColumn({
   hasMore,
   onLoadMore,
 }: {
+  id: string;
   status: string;
+  title?: string;
   issues: Issue[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
@@ -111,9 +134,9 @@ function KanbanColumn({
   hasMore?: boolean;
   onLoadMore?: (status: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id });
 
-  const isEmpty = issues.length === 0 && status === "cancelled";
+  const isEmpty = issues.length === 0 && id === "cancelled";
 
   return (
     <div className={`flex flex-col shrink-0 transition-[width,min-width] ${isEmpty && !isOver ? "min-w-[48px] w-[48px]" : "min-w-[260px] w-[260px]"}`}>
@@ -122,7 +145,7 @@ function KanbanColumn({
         {(!isEmpty || isOver) && (
           <>
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {statusLabel(status)}
+              {title ?? statusLabel(status)}
             </span>
             <span className="text-xs text-muted-foreground/60 ml-auto tabular-nums">
               {total ?? issues.length}
@@ -252,6 +275,7 @@ function KanbanCard({
 
 export function KanbanBoard({
   issues: serverIssues,
+  customColumns,
   agents,
   liveIssueIds,
   columnTotals: serverColumnTotals,
@@ -260,27 +284,47 @@ export function KanbanBoard({
   onUpdateIssue,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+  const [pendingMoves, setPendingMoves] = useState<Record<string, PendingMove>>({});
 
   const issues = useMemo(
     () => serverIssues.map((issue) => {
-      const status = pendingStatus[issue.id];
-      return status && status !== issue.status ? { ...issue, status: status as Issue["status"] } : issue;
+      const move = pendingMoves[issue.id];
+      return move ? { ...issue, status: move.status as Issue["status"], labelIds: move.labelIds } : issue;
     }),
-    [serverIssues, pendingStatus],
+    [serverIssues, pendingMoves],
+  );
+
+  const columns = useMemo<BoardColumn[]>(
+    () => boardStatuses.flatMap((status) => [
+      { id: status, status },
+      ...(customColumns ?? [])
+        .filter((column) => column.status === status)
+        .map((column) => ({ id: `label:${column.labelId}`, status, name: column.name, labelId: column.labelId })),
+    ]),
+    [customColumns],
+  );
+
+  const columnIdOf = useCallback(
+    (issue: Issue) =>
+      columns.find((column) => column.labelId && column.status === issue.status && issue.labelIds?.includes(column.labelId))?.id
+      ?? issue.status,
+    [columns],
   );
 
   const columnTotals = useMemo(() => {
     if (!serverColumnTotals) return undefined;
     const totals = { ...serverColumnTotals };
     for (const issue of serverIssues) {
-      const status = pendingStatus[issue.id];
-      if (!status || status === issue.status) continue;
+      const move = pendingMoves[issue.id];
+      if (!move || move.status === issue.status) continue;
       totals[issue.status] = (totals[issue.status] ?? 0) - 1;
-      totals[status] = (totals[status] ?? 0) + 1;
+      totals[move.status] = (totals[move.status] ?? 0) + 1;
+    }
+    for (const issue of issues) {
+      if (columnIdOf(issue) !== issue.status) totals[issue.status] = (totals[issue.status] ?? 0) - 1;
     }
     return totals;
-  }, [serverColumnTotals, serverIssues, pendingStatus]);
+  }, [serverColumnTotals, serverIssues, pendingMoves, issues, columnIdOf]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -288,16 +332,14 @@ export function KanbanBoard({
 
   const columnIssues = useMemo(() => {
     const grouped: Record<string, Issue[]> = {};
-    for (const status of boardStatuses) {
-      grouped[status] = [];
+    for (const column of columns) {
+      grouped[column.id] = [];
     }
     for (const issue of issues) {
-      if (grouped[issue.status]) {
-        grouped[issue.status].push(issue);
-      }
+      grouped[columnIdOf(issue)]?.push(issue);
     }
     return grouped;
-  }, [issues]);
+  }, [issues, columns, columnIdOf]);
 
   const activeIssue = useMemo(
     () => (activeId ? issues.find((i) => i.id === activeId) : null),
@@ -317,33 +359,36 @@ export function KanbanBoard({
     const issue = issues.find((i) => i.id === issueId);
     if (!issue) return;
 
-    // Determine target status: the "over" could be a column id (status string)
-    // or another card's id. Find which column the "over" belongs to.
-    let targetStatus: string | null = null;
+    const overIssue = issues.find((i) => i.id === over.id);
+    const targetId = overIssue ? columnIdOf(overIssue) : (over.id as string);
+    const target = columns.find((column) => column.id === targetId);
+    if (!target || target.id === columnIdOf(issue)) return;
 
-    if (boardStatuses.includes(over.id as string)) {
-      targetStatus = over.id as string;
-    } else {
-      // It's a card - find which column it's in
-      const targetIssue = issues.find((i) => i.id === over.id);
-      if (targetIssue) {
-        targetStatus = targetIssue.status;
-      }
-    }
+    const customLabelIds = new Set(columns.flatMap((column) => (column.labelId ? [column.labelId] : [])));
+    const currentLabelIds = issue.labelIds ?? [];
+    const labelIds = [
+      ...currentLabelIds.filter((labelId) => !customLabelIds.has(labelId)),
+      ...(target.labelId ? [target.labelId] : []),
+    ];
+    const labelsChanged =
+      labelIds.length !== currentLabelIds.length || labelIds.some((labelId) => !currentLabelIds.includes(labelId));
+    const move: PendingMove = { status: target.status, labelIds };
 
-    if (targetStatus && targetStatus !== issue.status) {
-      const movedTo = targetStatus;
-      setPendingStatus((prev) => ({ ...prev, [issueId]: movedTo }));
-      void Promise.resolve(onUpdateIssue(issueId, { status: movedTo }))
-        .catch(() => undefined)
-        .finally(() => {
-          setPendingStatus((prev) => {
-            if (prev[issueId] !== movedTo) return prev;
-            const { [issueId]: _settled, ...rest } = prev;
-            return rest;
-          });
+    setPendingMoves((prev) => ({ ...prev, [issueId]: move }));
+    void Promise.resolve(
+      onUpdateIssue(issueId, {
+        ...(target.status !== issue.status ? { status: target.status } : {}),
+        ...(labelsChanged ? { labelIds } : {}),
+      }),
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        setPendingMoves((prev) => {
+          if (prev[issueId] !== move) return prev;
+          const { [issueId]: _settled, ...rest } = prev;
+          return rest;
         });
-    }
+      });
   }
 
   function handleDragOver(_event: DragOverEvent) {
@@ -358,15 +403,17 @@ export function KanbanBoard({
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
-        {boardStatuses.map((status) => (
+        {columns.map((column) => (
           <KanbanColumn
-            key={status}
-            status={status}
-            issues={columnIssues[status] ?? []}
+            key={column.id}
+            id={column.id}
+            status={column.status}
+            title={column.name}
+            issues={columnIssues[column.id] ?? []}
             agents={agents}
             liveIssueIds={liveIssueIds}
-            total={columnTotals ? (columnTotals[status] ?? 0) : undefined}
-            hasMore={hasMoreByStatus?.[status]}
+            total={columnTotals && !column.labelId ? (columnTotals[column.status] ?? 0) : undefined}
+            hasMore={hasMoreByStatus?.[column.status]}
             onLoadMore={onLoadMoreColumn}
           />
         ))}

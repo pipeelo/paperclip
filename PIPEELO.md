@@ -31,6 +31,7 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 | Card do quadro muda de coluna na hora. Se o servidor recusa, o card volta | `ui/src/components/KanbanBoard.tsx`, `pages/Issues.tsx`, `pages/ProjectDetail.tsx` |
 | Menu lateral com "Todas as tarefas" e "Minhas tarefas" (`/issues?minhas=1`). O plugin `pipeelo.quadro` 0.4.0 aplica o filtro | `ui/src/components/Sidebar.tsx`, `SidebarNavItem.tsx` |
 | A tela de tarefas abre sempre em quadro (`initialViewMode="board"`) | `ui/src/pages/Issues.tsx`, `components/IssuesList.tsx` |
+| Colunas personalizadas no quadro (botão Colunas). A lista mora em `instance_settings.general.boardColumns` (nome + status base), sem migração. O card fica na coluna quando tem a etiqueta com o nome dela e está no status base. Só admin da instância cria ou apaga. O total da coluna personalizada conta só os cards já carregados | `packages/shared/src/validators/instance.ts`, `types/instance.ts`, `server/src/services/instance-settings.ts`, `ui/src/components/KanbanBoard.tsx`, `BoardColumnsEditor.tsx`, `IssuesList.tsx` |
 
 ## Testes
 
