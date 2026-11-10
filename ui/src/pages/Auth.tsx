@@ -161,7 +161,7 @@ export function AuthPage() {
               type="submit"
               disabled={mutation.isPending}
               aria-disabled={!canSubmit || mutation.isPending}
-              className={`inline-flex w-full items-center justify-center rounded-md bg-[#00D2A0] px-5 py-3 text-sm font-semibold text-[#090E17] transition hover:shadow-[0_0_20px_#00d2a04d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00D2A0] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none ${!canSubmit && !mutation.isPending ? "opacity-60" : ""}`}
+              className="inline-flex w-full items-center justify-center rounded-md bg-[#00D2A0] px-5 py-3 text-sm font-semibold text-[#090E17] transition hover:shadow-[0_0_20px_#00d2a04d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00D2A0] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
             >
               {mutation.isPending ? "Entrando…" : mode === "sign_in" ? "Entrar" : "Criar conta"}
             </button>
