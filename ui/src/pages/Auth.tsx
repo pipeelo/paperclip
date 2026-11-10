@@ -4,11 +4,18 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
-import { Button } from "@/components/ui/button";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
-import { Sparkles } from "lucide-react";
 
 type AuthMode = "sign_in" | "sign_up";
+
+const FIELD_CLASS =
+  "w-full rounded-md border border-[#1E293B] bg-[#111827] px-4 py-3 text-[15px] text-[#F8FAFC] outline-none transition-colors placeholder:text-[#64748B] focus:border-[#00D2A0]";
+
+const HIGHLIGHTS = [
+  { title: "Quadro de tarefas", text: "Minhas tarefas, todas as tarefas e as colunas do fluxo do time." },
+  { title: "Agentes", text: "Jarvis e Friday trabalham nas tarefas atribuídas a eles." },
+  { title: "Projetos", text: "Tarefas agrupadas por projeto." },
+  { title: "Rotinas", text: "Trabalho que se repete, no horário marcado." },
+];
 
 export function AuthPage() {
   const queryClient = useQueryClient();
@@ -55,7 +62,7 @@ export function AuthPage() {
       navigate(nextPath, { replace: true });
     },
     onError: (err) => {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(err instanceof Error ? err.message : "Não deu para entrar. Confira o e-mail e a senha.");
     },
   });
 
@@ -66,40 +73,45 @@ export function AuthPage() {
 
   if (isSessionLoading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      <div className="fixed inset-0 flex items-center justify-center bg-[#090E17]">
+        <p className="text-sm text-[#94A3B8]">Carregando…</p>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 flex bg-background">
-      {/* Left half — form */}
-      <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
-        <div className="w-full max-w-md mx-auto my-auto px-8 py-12">
-          <div className="flex items-center gap-2 mb-8">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Paperclip</span>
-          </div>
+    <main
+      className="fixed inset-0 grid overflow-y-auto bg-[#090E17] text-[#F8FAFC] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"
+      style={{ fontFamily: '"Plus Jakarta Sans", system-ui, sans-serif' }}
+    >
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        precedence="default"
+      />
+      <section className="flex min-h-full flex-col justify-between px-6 py-10 sm:px-12 lg:px-16">
+        <img src="/pipeelo-logo.webp" alt="Pipeelo" className="h-7 w-auto self-start" />
 
-          <h1 className="text-xl font-semibold">
-            {mode === "sign_in" ? "Sign in to Paperclip" : "Create your Paperclip account"}
+        <div className="w-full max-w-sm py-12">
+          <h1 className="text-[40px] font-bold leading-[1.1] tracking-[-0.02em]">
+            {mode === "sign_in" ? "Tarefas" : "Criar conta"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-3 text-[#94A3B8]">
             {mode === "sign_in"
-              ? "Use your email and password to access this instance."
-              : "Create an account for this instance. Email confirmation is not required in v1."}
+              ? "Entre com o e-mail e a senha da sua conta no Paperclip da Pipeelo."
+              : "Crie a sua conta no Paperclip da Pipeelo. A senha precisa de 8 caracteres ou mais."}
           </p>
 
           <form
-            className="mt-6 space-y-4"
+            className="mt-10 space-y-5"
             method="post"
             action={mode === "sign_up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email"}
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (mutation.isPending) return;
               if (!canSubmit) {
-                setError("Please fill in all required fields.");
+                setError("Preencha todos os campos.");
                 return;
               }
               mutation.mutate();
@@ -107,11 +119,11 @@ export function AuthPage() {
           >
             {mode === "sign_up" && (
               <div>
-                <label htmlFor="name" className="text-xs text-muted-foreground mb-1 block">Name</label>
+                <label htmlFor="name" className="mb-2 block text-sm font-medium">Nome</label>
                 <input
                   id="name"
                   name="name"
-                  className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                  className={FIELD_CLASS}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   autoComplete="name"
@@ -120,11 +132,11 @@ export function AuthPage() {
               </div>
             )}
             <div>
-              <label htmlFor="email" className="text-xs text-muted-foreground mb-1 block">Email</label>
+              <label htmlFor="email" className="mb-2 block text-sm font-medium">E-mail</label>
               <input
                 id="email"
                 name="email"
-                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                className={FIELD_CLASS}
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -133,52 +145,72 @@ export function AuthPage() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="text-xs text-muted-foreground mb-1 block">Password</label>
+              <label htmlFor="password" className="mb-2 block text-sm font-medium">Senha</label>
               <input
                 id="password"
                 name="password"
-                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                className={FIELD_CLASS}
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
               />
             </div>
-            {error && <p className="text-xs text-destructive">{error}</p>}
-            <Button
+            {error && <p role="alert" className="text-sm text-[#F87171]">{error}</p>}
+            <button
               type="submit"
               disabled={mutation.isPending}
               aria-disabled={!canSubmit || mutation.isPending}
-              className={`w-full ${!canSubmit && !mutation.isPending ? "opacity-50" : ""}`}
+              className={`inline-flex w-full items-center justify-center rounded-md bg-[#00D2A0] px-5 py-3 text-sm font-semibold text-[#090E17] transition hover:shadow-[0_0_20px_#00d2a04d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00D2A0] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none ${!canSubmit && !mutation.isPending ? "opacity-60" : ""}`}
             >
-              {mutation.isPending
-                ? "Working…"
-                : mode === "sign_in"
-                  ? "Sign In"
-                  : "Create Account"}
-            </Button>
-          </form>
-
-          <div className="mt-5 text-sm text-muted-foreground">
-            {mode === "sign_in" ? "Need an account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              className="font-medium text-foreground underline underline-offset-2"
-              onClick={() => {
-                setError(null);
-                setMode(mode === "sign_in" ? "sign_up" : "sign_in");
-              }}
-            >
-              {mode === "sign_in" ? "Create one" : "Sign in"}
+              {mutation.isPending ? "Entrando…" : mode === "sign_in" ? "Entrar" : "Criar conta"}
             </button>
-          </div>
+          </form>
         </div>
-      </div>
 
-      {/* Right half — ASCII art animation (hidden on mobile) */}
-      <div className="hidden md:block w-1/2 overflow-hidden">
-        <AsciiArtAnimation />
-      </div>
-    </div>
+        <p className="text-xs text-[#64748B]">
+          {mode === "sign_in" ? "Ainda não tem conta?" : "Já tem conta?"}{" "}
+          <button
+            type="button"
+            className="font-medium text-[#F8FAFC] underline underline-offset-2"
+            onClick={() => {
+              setError(null);
+              setMode(mode === "sign_in" ? "sign_up" : "sign_in");
+            }}
+          >
+            {mode === "sign_in" ? "Criar conta" : "Entrar"}
+          </button>
+        </p>
+      </section>
+
+      <aside className="relative hidden overflow-hidden border-l border-[#1E293B]/60 bg-[#0F172A]/40 lg:flex lg:items-center">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-40 top-1/4 h-[520px] w-[520px] rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, rgba(9, 14, 23, 0) 70%)" }}
+        />
+        <div className="relative w-full max-w-lg px-16">
+          <p className="text-sm text-[#00D2A0]">Time e agentes no mesmo lugar</p>
+          <h2 className="mt-2 text-[28px] font-semibold leading-tight">Paperclip da Pipeelo</h2>
+          <ol className="mt-10">
+            {HIGHLIGHTS.map((item, index) => (
+              <li key={item.title} className="relative flex gap-5 pb-8 last:pb-0">
+                {index < HIGHLIGHTS.length - 1 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-[2px] bg-gradient-to-b from-[#00D2A0]/60 to-[#1E293B]"
+                  />
+                ) : null}
+                <span className="relative z-10 mt-1 h-6 w-6 shrink-0 rounded-full border-2 border-[#00D2A0] bg-[#090E17]" />
+                <span>
+                  <span className="block font-semibold">{item.title}</span>
+                  <span className="mt-1 block text-sm text-[#94A3B8]">{item.text}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </aside>
+    </main>
   );
 }
