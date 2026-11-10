@@ -2281,6 +2281,7 @@ export function issueService(db: Db) {
             SELECT ${issues.id}, ${issues.parentId}
             FROM ${issues}
             WHERE ${issues.companyId} = ${companyId}
+              AND ${issues.hiddenAt} IS NULL
               AND (
                 ${issues.createdByUserId} = ${mineUserId}
                 OR ${issues.assigneeUserId} = ${mineUserId}
@@ -2295,6 +2296,7 @@ export function issueService(db: Db) {
             FROM ${issues}
             JOIN mine ON ${issues.parentId} = mine.id
             WHERE ${issues.companyId} = ${companyId}
+              AND ${issues.hiddenAt} IS NULL
           ),
           mine_with_ancestors(id, parent_id) AS (
             SELECT id, parent_id FROM mine
@@ -2303,6 +2305,7 @@ export function issueService(db: Db) {
             FROM ${issues}
             JOIN mine_with_ancestors ON mine_with_ancestors.parent_id = ${issues.id}
             WHERE ${issues.companyId} = ${companyId}
+              AND ${issues.hiddenAt} IS NULL
           )
           SELECT id FROM mine_with_ancestors
         )

@@ -112,6 +112,7 @@ describeEmbeddedPostgres("issueService.countByStatus", () => {
     const companyId = randomUUID();
     const userId = "user-mine";
     const parentOfAssignedId = randomUUID();
+    const parentOfHiddenId = randomUUID();
     const createdId = randomUUID();
     await db.insert(companies).values({
       id: companyId,
@@ -122,12 +123,22 @@ describeEmbeddedPostgres("issueService.countByStatus", () => {
     await db.insert(issues).values([
       { id: createdId, companyId, title: "Created by me", status: "todo", priority: "medium", createdByUserId: userId },
       { id: parentOfAssignedId, companyId, title: "Parent of assigned", status: "backlog", priority: "medium" },
+      { id: parentOfHiddenId, companyId, title: "Parent of hidden", status: "done", priority: "medium" },
       { companyId, title: "Unrelated", status: "todo", priority: "medium", createdByUserId: "user-other" },
     ]);
     await db.insert(issues).values([
       { companyId, title: "Child of created", status: "done", priority: "medium", parentId: createdId },
       { companyId, title: "Assigned to me", status: "todo", priority: "medium", parentId: parentOfAssignedId, assigneeUserId: userId },
       { companyId, title: "Sibling of assigned", status: "todo", priority: "medium", parentId: parentOfAssignedId },
+      {
+        companyId,
+        title: "Hidden but assigned to me",
+        status: "done",
+        priority: "medium",
+        parentId: parentOfHiddenId,
+        assigneeUserId: userId,
+        hiddenAt: new Date(),
+      },
       {
         companyId,
         title: "I review",
