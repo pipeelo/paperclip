@@ -2283,7 +2283,11 @@ export function issueService(db: Db) {
             WHERE ${issues.companyId} = ${companyId}
               AND ${issues.hiddenAt} IS NULL
               AND (
-                ${issues.createdByUserId} = ${mineUserId}
+                (
+                  ${issues.createdByUserId} = ${mineUserId}
+                  AND ${issues.assigneeUserId} IS NULL
+                  AND ${issues.assigneeAgentId} IS NULL
+                )
                 OR ${issues.assigneeUserId} = ${mineUserId}
                 OR jsonb_path_exists(
                   ${issues.executionPolicy},

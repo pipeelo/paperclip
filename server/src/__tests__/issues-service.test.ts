@@ -108,12 +108,13 @@ describeEmbeddedPostgres("issueService.countByStatus", () => {
     expect(todoList).toHaveLength(1);
   });
 
-  it("filters lists and counts to the user's own issues, their descendants and their ancestors", async () => {
+  it("filters lists and counts to the issues the user owns, their descendants and their ancestors", async () => {
     const companyId = randomUUID();
     const userId = "user-mine";
     const parentOfAssignedId = randomUUID();
     const parentOfHiddenId = randomUUID();
     const createdId = randomUUID();
+    const delegatedId = randomUUID();
     await db.insert(companies).values({
       id: companyId,
       name: "Paperclip",
@@ -124,12 +125,22 @@ describeEmbeddedPostgres("issueService.countByStatus", () => {
       { id: createdId, companyId, title: "Created by me", status: "todo", priority: "medium", createdByUserId: userId },
       { id: parentOfAssignedId, companyId, title: "Parent of assigned", status: "backlog", priority: "medium" },
       { id: parentOfHiddenId, companyId, title: "Parent of hidden", status: "done", priority: "medium" },
+      {
+        id: delegatedId,
+        companyId,
+        title: "Created by me for someone else",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: userId,
+        assigneeUserId: "user-other",
+      },
       { companyId, title: "Unrelated", status: "todo", priority: "medium", createdByUserId: "user-other" },
     ]);
     await db.insert(issues).values([
       { companyId, title: "Child of created", status: "done", priority: "medium", parentId: createdId },
       { companyId, title: "Assigned to me", status: "todo", priority: "medium", parentId: parentOfAssignedId, assigneeUserId: userId },
       { companyId, title: "Sibling of assigned", status: "todo", priority: "medium", parentId: parentOfAssignedId },
+      { companyId, title: "Child of delegated", status: "todo", priority: "medium", parentId: delegatedId },
       {
         companyId,
         title: "Hidden but assigned to me",
