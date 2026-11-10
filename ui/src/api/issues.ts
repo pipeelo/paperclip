@@ -34,6 +34,7 @@ export type IssueListFilters = {
   assigneeAgentId?: string;
   participantAgentId?: string;
   assigneeUserId?: string;
+  mine?: boolean;
   touchedByUserId?: string;
   inboxArchivedByUserId?: string;
   unreadForUserId?: string;
@@ -59,6 +60,7 @@ function issueListParams(filters?: IssueListFilters): URLSearchParams {
   if (filters?.assigneeAgentId) params.set("assigneeAgentId", filters.assigneeAgentId);
   if (filters?.participantAgentId) params.set("participantAgentId", filters.participantAgentId);
   if (filters?.assigneeUserId) params.set("assigneeUserId", filters.assigneeUserId);
+  if (filters?.mine) params.set("mine", "true");
   if (filters?.touchedByUserId) params.set("touchedByUserId", filters.touchedByUserId);
   if (filters?.inboxArchivedByUserId) params.set("inboxArchivedByUserId", filters.inboxArchivedByUserId);
   if (filters?.unreadForUserId) params.set("unreadForUserId", filters.unreadForUserId);

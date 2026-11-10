@@ -1364,7 +1364,12 @@ export function issueRoutes(
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
     const ligado = (valor: unknown) => valor === "true" || valor === "1";
+    if (ligado(req.query.mine) && (req.actor.type !== "board" || !req.actor.userId)) {
+      res.status(403).json({ error: "mine requires board authentication" });
+      return;
+    }
     const counts = await svc.countByStatus(companyId, {
+      mineForUserId: ligado(req.query.mine) && req.actor.type === "board" ? req.actor.userId ?? undefined : undefined,
       assigneeAgentId: req.query.assigneeAgentId as string | undefined,
       participantAgentId: req.query.participantAgentId as string | undefined,
       projectId: req.query.projectId as string | undefined,
@@ -1417,6 +1422,13 @@ export function issueRoutes(
       ? Number.parseInt(rawOffset, 10)
       : null;
 
+    const mineRequested = req.query.mine === "true" || req.query.mine === "1";
+    const mineForUserId = mineRequested && req.actor.type === "board" ? req.actor.userId ?? undefined : undefined;
+
+    if (mineRequested && !mineForUserId) {
+      res.status(403).json({ error: "mine requires board authentication" });
+      return;
+    }
     if (assigneeUserFilterRaw === "me" && (!assigneeUserId || req.actor.type !== "board")) {
       res.status(403).json({ error: "assigneeUserId=me requires board authentication" });
       return;
@@ -1448,6 +1460,7 @@ export function issueRoutes(
       assigneeAgentId: req.query.assigneeAgentId as string | undefined,
       participantAgentId: req.query.participantAgentId as string | undefined,
       assigneeUserId,
+      mineForUserId,
       touchedByUserId,
       inboxArchivedByUserId,
       unreadForUserId,

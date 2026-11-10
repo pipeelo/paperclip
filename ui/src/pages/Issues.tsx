@@ -72,6 +72,7 @@ export function Issues() {
     return urlSearch;
   }, [searchOverride, urlSearch, location.search]);
   const participantAgentId = searchParams.get("participantAgentId") ?? undefined;
+  const mine = searchParams.has("minhas");
   const initialWorkspaces = searchParams.getAll("workspace").filter((workspaceId) => workspaceId.length > 0);
   const workspaceIdFilter = initialWorkspaces.length === 1 ? initialWorkspaces[0] : undefined;
   const handleSearchChange = useCallback((search: string) => {
@@ -136,6 +137,7 @@ export function Issues() {
       participantAgentId ?? "__all__",
       "workspace",
       workspaceIdFilter ?? "__all__",
+      mine ? "mine" : "everyone",
       "with-routine-executions",
       "infinite",
       issuePageSize,
@@ -143,6 +145,7 @@ export function Issues() {
     queryFn: ({ pageParam }) => issuesApi.list(selectedCompanyId!, {
       participantAgentId,
       workspaceId: workspaceIdFilter,
+      mine,
       includeRoutineExecutions: true,
       limit: issuePageSize,
       offset: pageParam,
@@ -164,6 +167,13 @@ export function Issues() {
       fetchNextPageInFlightRef.current = false;
     });
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  const searchFilters = useMemo(
+    () => (participantAgentId || workspaceIdFilter || mine
+      ? { participantAgentId, workspaceId: workspaceIdFilter, ...(mine ? { mine: true } : {}) }
+      : undefined),
+    [participantAgentId, workspaceIdFilter, mine],
+  );
 
   const updateIssue = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
@@ -196,7 +206,7 @@ export function Issues() {
       hasMoreIssues={hasMoreServerIssues}
       onLoadMoreIssues={loadMoreServerIssues}
       onUpdateIssue={(id, data) => updateIssue.mutateAsync({ id, data }).catch(() => undefined)}
-      searchFilters={participantAgentId || workspaceIdFilter ? { participantAgentId, workspaceId: workspaceIdFilter } : undefined}
+      searchFilters={searchFilters}
     />
   );
 }

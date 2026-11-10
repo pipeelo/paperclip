@@ -123,6 +123,7 @@ export interface IssueFilters {
   assigneeAgentId?: string;
   participantAgentId?: string;
   assigneeUserId?: string;
+  mineForUserId?: string;
   touchedByUserId?: string;
   inboxArchivedByUserId?: string;
   unreadForUserId?: string;
@@ -2269,6 +2270,41 @@ export function issueService(db: Db) {
             WHERE ${issues.companyId} = ${companyId}
           )
           SELECT id FROM descendants
+        )
+      `);
+    }
+    if (filters?.mineForUserId) {
+      const mineUserId = filters.mineForUserId;
+      conditions.push(sql<boolean>`
+        ${issues.id} IN (
+          WITH RECURSIVE mine(id, parent_id) AS (
+            SELECT ${issues.id}, ${issues.parentId}
+            FROM ${issues}
+            WHERE ${issues.companyId} = ${companyId}
+              AND (
+                ${issues.createdByUserId} = ${mineUserId}
+                OR ${issues.assigneeUserId} = ${mineUserId}
+                OR jsonb_path_exists(
+                  ${issues.executionPolicy},
+                  '$.stages[*].participants[*] ? (@.type == "user" && @.userId == $uid)',
+                  jsonb_build_object('uid', ${mineUserId}::text)
+                )
+              )
+            UNION
+            SELECT ${issues.id}, ${issues.parentId}
+            FROM ${issues}
+            JOIN mine ON ${issues.parentId} = mine.id
+            WHERE ${issues.companyId} = ${companyId}
+          ),
+          mine_with_ancestors(id, parent_id) AS (
+            SELECT id, parent_id FROM mine
+            UNION
+            SELECT ${issues.id}, ${issues.parentId}
+            FROM ${issues}
+            JOIN mine_with_ancestors ON mine_with_ancestors.parent_id = ${issues.id}
+            WHERE ${issues.companyId} = ${companyId}
+          )
+          SELECT id FROM mine_with_ancestors
         )
       `);
     }

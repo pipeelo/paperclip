@@ -107,6 +107,58 @@ describeEmbeddedPostgres("issueService.countByStatus", () => {
     const todoList = await svc.list(companyId, { projectId, status: "todo", limit: 1 });
     expect(todoList).toHaveLength(1);
   });
+
+  it("filters lists and counts to the user's own issues, their descendants and their ancestors", async () => {
+    const companyId = randomUUID();
+    const userId = "user-mine";
+    const parentOfAssignedId = randomUUID();
+    const createdId = randomUUID();
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(issues).values([
+      { id: createdId, companyId, title: "Created by me", status: "todo", priority: "medium", createdByUserId: userId },
+      { id: parentOfAssignedId, companyId, title: "Parent of assigned", status: "backlog", priority: "medium" },
+      { companyId, title: "Unrelated", status: "todo", priority: "medium", createdByUserId: "user-other" },
+    ]);
+    await db.insert(issues).values([
+      { companyId, title: "Child of created", status: "done", priority: "medium", parentId: createdId },
+      { companyId, title: "Assigned to me", status: "todo", priority: "medium", parentId: parentOfAssignedId, assigneeUserId: userId },
+      { companyId, title: "Sibling of assigned", status: "todo", priority: "medium", parentId: parentOfAssignedId },
+      {
+        companyId,
+        title: "I review",
+        status: "in_review",
+        priority: "medium",
+        executionPolicy: { stages: [{ participants: [{ type: "user", userId }] }] },
+      },
+      {
+        companyId,
+        title: "Someone else reviews",
+        status: "in_review",
+        priority: "medium",
+        executionPolicy: { stages: [{ participants: [{ type: "user", userId: "user-other" }] }] },
+      },
+    ]);
+
+    const mine = await svc.list(companyId, { mineForUserId: userId });
+    expect(mine.map((issue) => issue.title).sort()).toEqual([
+      "Assigned to me",
+      "Child of created",
+      "Created by me",
+      "I review",
+      "Parent of assigned",
+    ]);
+    expect(await svc.countByStatus(companyId, { mineForUserId: userId })).toEqual({
+      backlog: 1,
+      todo: 2,
+      done: 1,
+      in_review: 1,
+    });
+  });
 });
 
 describeEmbeddedPostgres("issueService.list participantAgentId", () => {
