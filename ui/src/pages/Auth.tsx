@@ -4,18 +4,35 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
+import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
 
 type AuthMode = "sign_in" | "sign_up";
 
 const FIELD_CLASS =
   "w-full rounded-md border border-[#1E293B] bg-[#111827] px-4 py-3 text-[15px] text-[#F8FAFC] outline-none transition-colors placeholder:text-[#64748B] focus:border-[#00D2A0]";
 
-const HIGHLIGHTS = [
-  { title: "Quadro de tarefas", text: "Minhas tarefas, todas as tarefas e as colunas do fluxo do time." },
-  { title: "Agentes", text: "Jarvis e Friday trabalham nas tarefas atribuídas a eles." },
-  { title: "Projetos", text: "Tarefas agrupadas por projeto." },
-  { title: "Rotinas", text: "Trabalho que se repete, no horário marcado." },
-];
+const PIPEELO_SPRITES = [
+  [
+    "    ▄▄██████▄     ",
+    "  ▄█████████ ██▄  ",
+    " ███████▀   █████ ",
+    "█████▀       █████",
+    "█████▀  ▀▄  ██████",
+    "█████       ██████",
+    " ████▄   ▄███████ ",
+    "  ▀█▀▄█████████▀  ",
+    "     ▀██████▀▀    ",
+  ],
+  [
+    "   ▄█████▄                                                    ",
+    " ▄█████▀▀▄██▄  ▄▄▄▄▄  ▄▄▄ ▄▄▄▄▄▄  ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄     ▄▄▄▄▄  ",
+    "████▀▀   ▀███  ██▀▀██ ███ ███▀██▄ ██▀▀▀  ██▀▀▀  ██    ███▀▀██▄",
+    "████     ████  ██▄███ ███ ███▄██▀ █████  █████  ██    ██    ██",
+    "████    ▄████  ██▀▀   ███ ███▀    ██▄▄▄  ██▄▄▄  ██▄▄▄ ▀██▄▄██▀",
+    " ▀██▄▄██████▀  ▀▀     ▀▀▀ ▀▀▀     ▀▀▀▀▀▀ ▀▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ",
+    "    █████▀▀                                                   ",
+  ],
+] as const;
 
 export function AuthPage() {
   const queryClient = useQueryClient();
@@ -183,32 +200,14 @@ export function AuthPage() {
         </p>
       </section>
 
-      <aside className="relative hidden overflow-hidden border-l border-[#1E293B]/60 bg-[#0F172A]/40 lg:flex lg:items-center">
+      <aside className="relative hidden overflow-hidden border-l border-[#1E293B]/60 bg-[#0F172A]/40 lg:block">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -right-40 top-1/4 h-[520px] w-[520px] rounded-full"
           style={{ background: "radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, rgba(9, 14, 23, 0) 70%)" }}
         />
-        <div className="relative w-full max-w-lg px-16">
-          <p className="text-sm text-[#00D2A0]">Time e agentes no mesmo lugar</p>
-          <h2 className="mt-2 text-[28px] font-semibold leading-tight">Paperclip da Pipeelo</h2>
-          <ol className="mt-10">
-            {HIGHLIGHTS.map((item, index) => (
-              <li key={item.title} className="relative flex gap-5 pb-8 last:pb-0">
-                {index < HIGHLIGHTS.length - 1 ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-[2px] bg-gradient-to-b from-[#00D2A0]/60 to-[#1E293B]"
-                  />
-                ) : null}
-                <span className="relative z-10 mt-1 h-6 w-6 shrink-0 rounded-full border-2 border-[#00D2A0] bg-[#090E17]" />
-                <span>
-                  <span className="block font-semibold">{item.title}</span>
-                  <span className="mt-1 block text-sm text-[#94A3B8]">{item.text}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
+        <div className="absolute inset-0">
+          <AsciiArtAnimation sprites={PIPEELO_SPRITES} className="text-[#00D2A0]/55" />
         </div>
       </aside>
     </main>
