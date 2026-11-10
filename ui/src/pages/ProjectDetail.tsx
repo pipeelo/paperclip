@@ -188,10 +188,10 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
   const updateIssue = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       issuesApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-    },
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) }),
+    ]),
   });
 
   return (
@@ -204,7 +204,7 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
       liveIssueIds={liveIssueIds}
       projectId={projectId}
       viewStateKey="paperclip:project-issues-view"
-      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      onUpdateIssue={(id, data) => updateIssue.mutateAsync({ id, data }).catch(() => undefined)}
     />
   );
 }
@@ -248,11 +248,11 @@ function ProjectPluginOperationsList({
   const updateIssue = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       issuesApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listPluginOperationsByProject(companyId, projectId, originKindPrefix) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-    },
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listPluginOperationsByProject(companyId, projectId, originKindPrefix) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) }),
+    ]),
   });
 
   return (
@@ -265,7 +265,7 @@ function ProjectPluginOperationsList({
       liveIssueIds={liveIssueIds}
       projectId={projectId}
       viewStateKey={`paperclip:project-plugin-operations-view:${pluginKey}`}
-      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      onUpdateIssue={(id, data) => updateIssue.mutateAsync({ id, data }).catch(() => undefined)}
     />
   );
 }

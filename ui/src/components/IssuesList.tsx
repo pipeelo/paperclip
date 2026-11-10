@@ -170,8 +170,10 @@ function getInitialWorkspaceViewState(
   initialAssignees?: string[],
   initialWorkspaces?: string[],
   defaultSortField?: IssueSortField,
+  initialViewMode?: IssueViewState["viewMode"],
 ): IssueViewState {
-  const stored = getInitialViewState(key, initialAssignees, defaultSortField);
+  const base = getInitialViewState(key, initialAssignees, defaultSortField);
+  const stored = initialViewMode ? { ...base, viewMode: initialViewMode } : base;
   if (!initialWorkspaces) return stored;
   return {
     ...stored,
@@ -378,7 +380,8 @@ interface IssuesListProps {
   onLoadMoreIssues?: () => void;
   onSearchChange?: (search: string) => void;
   onViewModeChange?: (viewMode: IssueViewState["viewMode"]) => void;
-  onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
+  initialViewMode?: IssueViewState["viewMode"];
+  onUpdateIssue: (id: string, data: Record<string, unknown>) => void | Promise<unknown>;
 }
 
 function IssueSearchInput({
@@ -586,6 +589,7 @@ export function IssuesList({
   onLoadMoreIssues,
   onSearchChange,
   onViewModeChange,
+  initialViewMode,
   onUpdateIssue,
 }: IssuesListProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -614,7 +618,7 @@ export function IssuesList({
   const initialWorkspacesKey = initialWorkspaces?.join("|") ?? "";
 
   const [viewState, setViewState] = useState<IssueViewState>(() =>
-    getInitialWorkspaceViewState(scopedKey, initialAssignees, initialWorkspaces, defaultSortField),
+    getInitialWorkspaceViewState(scopedKey, initialAssignees, initialWorkspaces, defaultSortField, initialViewMode),
   );
   const [assigneePickerIssueId, setAssigneePickerIssueId] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
@@ -636,9 +640,9 @@ export function IssuesList({
     const nextContextKey = `${scopedKey}::${initialAssigneesKey}::${initialWorkspacesKey}`;
     if (prevViewStateContextKey.current !== nextContextKey) {
       prevViewStateContextKey.current = nextContextKey;
-      setViewState(getInitialWorkspaceViewState(scopedKey, initialAssignees, initialWorkspaces, defaultSortField));
+      setViewState(getInitialWorkspaceViewState(scopedKey, initialAssignees, initialWorkspaces, defaultSortField, initialViewMode));
     }
-  }, [scopedKey, initialAssignees, initialAssigneesKey, initialWorkspaces, initialWorkspacesKey, defaultSortField]);
+  }, [scopedKey, initialAssignees, initialAssigneesKey, initialWorkspaces, initialWorkspacesKey, defaultSortField, initialViewMode]);
 
   const prevColumnsScopedKey = useRef(scopedKey);
   useEffect(() => {

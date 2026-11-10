@@ -28,6 +28,9 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 | Sem Dashboard: `/dashboard` e a entrada abrem Issues. O arquivo `pages/Dashboard.tsx` fica para não dar conflito ao juntar o original | `ui/src/App.tsx`, `Sidebar.tsx`, `MobileBottomNav.tsx`, `CommandPalette.tsx` |
 | Item Vigias acima de Activity: abre a página `vigias` do plugin `pipeelo.porteiro` | `ui/src/components/Sidebar.tsx`, `lib/company-routes.ts` |
 | Total de tarefas por status: `GET /companies/:companyId/issues/status-counts` | `server/src/routes/issues.ts`, `issueService.countByStatus` |
+| Card do quadro muda de coluna na hora. Se o servidor recusa, o card volta | `ui/src/components/KanbanBoard.tsx`, `pages/Issues.tsx`, `pages/ProjectDetail.tsx` |
+| Menu lateral com "Todas as tarefas" e "Minhas tarefas" (`/issues?minhas=1`). O plugin `pipeelo.quadro` 0.4.0 aplica o filtro | `ui/src/components/Sidebar.tsx`, `SidebarNavItem.tsx` |
+| A tela de tarefas abre sempre em quadro (`initialViewMode="board"`) | `ui/src/pages/Issues.tsx`, `components/IssuesList.tsx` |
 
 ## Testes
 

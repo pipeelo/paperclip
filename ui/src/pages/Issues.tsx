@@ -168,9 +168,7 @@ export function Issues() {
   const updateIssue = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       issuesApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(selectedCompanyId!) });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(selectedCompanyId!) }),
   });
 
   if (!selectedCompanyId) {
@@ -187,6 +185,7 @@ export function Issues() {
       projects={projects}
       liveIssueIds={liveIssueIds}
       viewStateKey="paperclip:issues-view"
+      initialViewMode="board"
       issueLinkState={issueLinkState}
       initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
       initialWorkspaces={initialWorkspaces.length > 0 ? initialWorkspaces : undefined}
@@ -196,7 +195,7 @@ export function Issues() {
       enableRoutineVisibilityFilter
       hasMoreIssues={hasMoreServerIssues}
       onLoadMoreIssues={loadMoreServerIssues}
-      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      onUpdateIssue={(id, data) => updateIssue.mutateAsync({ id, data }).catch(() => undefined)}
       searchFilters={participantAgentId || workspaceIdFilter ? { participantAgentId, workspaceId: workspaceIdFilter } : undefined}
     />
   );

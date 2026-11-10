@@ -9,6 +9,7 @@ interface SidebarNavItemProps {
   label: string;
   icon: LucideIcon;
   end?: boolean;
+  active?: boolean;
   className?: string;
   badge?: number;
   badgeTone?: "default" | "danger";
@@ -23,6 +24,7 @@ export function SidebarNavItem({
   label,
   icon: Icon,
   end,
+  active,
   className,
   badge,
   badgeTone = "default",
@@ -42,7 +44,7 @@ export function SidebarNavItem({
       className={({ isActive }) =>
         cn(
           "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors",
-          isActive
+          (active ?? isActive)
             ? "bg-accent text-foreground"
             : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
           className,

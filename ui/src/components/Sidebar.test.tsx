@@ -12,6 +12,7 @@ const mockInstanceSettingsApi = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/router", () => ({
+  useLocation: () => ({ search: "" }),
   NavLink: ({ to, children, className, ...props }: {
     to: string;
     children: ReactNode;

@@ -50,7 +50,7 @@ interface KanbanBoardProps {
   columnTotals?: Record<string, number>;
   hasMoreByStatus?: Record<string, boolean>;
   onLoadMoreColumn?: (status: string) => void;
-  onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
+  onUpdateIssue: (id: string, data: Record<string, unknown>) => void | Promise<unknown>;
 }
 
 function ColumnLoadMore({ onVisible }: { onVisible: () => void }) {
@@ -251,15 +251,36 @@ function KanbanCard({
 /* ── Main Board ── */
 
 export function KanbanBoard({
-  issues,
+  issues: serverIssues,
   agents,
   liveIssueIds,
-  columnTotals,
+  columnTotals: serverColumnTotals,
   hasMoreByStatus,
   onLoadMoreColumn,
   onUpdateIssue,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
+
+  const issues = useMemo(
+    () => serverIssues.map((issue) => {
+      const status = pendingStatus[issue.id];
+      return status && status !== issue.status ? { ...issue, status: status as Issue["status"] } : issue;
+    }),
+    [serverIssues, pendingStatus],
+  );
+
+  const columnTotals = useMemo(() => {
+    if (!serverColumnTotals) return undefined;
+    const totals = { ...serverColumnTotals };
+    for (const issue of serverIssues) {
+      const status = pendingStatus[issue.id];
+      if (!status || status === issue.status) continue;
+      totals[issue.status] = (totals[issue.status] ?? 0) - 1;
+      totals[status] = (totals[status] ?? 0) + 1;
+    }
+    return totals;
+  }, [serverColumnTotals, serverIssues, pendingStatus]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -311,7 +332,17 @@ export function KanbanBoard({
     }
 
     if (targetStatus && targetStatus !== issue.status) {
-      onUpdateIssue(issueId, { status: targetStatus });
+      const movedTo = targetStatus;
+      setPendingStatus((prev) => ({ ...prev, [issueId]: movedTo }));
+      void Promise.resolve(onUpdateIssue(issueId, { status: movedTo }))
+        .catch(() => undefined)
+        .finally(() => {
+          setPendingStatus((prev) => {
+            if (prev[issueId] !== movedTo) return prev;
+            const { [issueId]: _settled, ...rest } = prev;
+            return rest;
+          });
+        });
     }
   }
 

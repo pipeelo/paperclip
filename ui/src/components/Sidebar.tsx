@@ -1,6 +1,7 @@
 import {
   Inbox,
   CircleDot,
+  CircleUser,
   Target,
   DollarSign,
   Eye,
@@ -14,7 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { NavLink } from "@/lib/router";
+import { NavLink, useLocation } from "@/lib/router";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { SidebarProjects } from "./SidebarProjects";
@@ -37,6 +38,7 @@ export function Sidebar() {
     queryFn: () => instanceSettingsApi.getExperimental(),
   });
   const showWorkspacesLink = experimentalSettings?.enableIsolatedWorkspaces === true;
+  const showingMine = new URLSearchParams(useLocation().search).has("minhas");
 
   const pluginContext = {
     companyId: selectedCompanyId,
@@ -90,7 +92,8 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work">
-          <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
+          <SidebarNavItem to="/issues" label="Todas as tarefas" icon={CircleDot} active={showingMine ? false : undefined} />
+          <SidebarNavItem to="/issues?minhas=1" label="Minhas tarefas" icon={CircleUser} active={showingMine ? undefined : false} />
           <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           <SidebarNavItem to="/goals" label="Goals" icon={Target} />
           {showWorkspacesLink ? (
