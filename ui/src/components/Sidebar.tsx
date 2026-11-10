@@ -92,8 +92,8 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work">
-          <SidebarNavItem to="/issues" label="Todas as tarefas" icon={CircleDot} active={showingMine ? false : undefined} />
           <SidebarNavItem to="/issues?minhas=1" label="Minhas tarefas" icon={CircleUser} active={showingMine ? undefined : false} />
+          <SidebarNavItem to="/issues" label="Todas as tarefas" icon={CircleDot} active={showingMine ? false : undefined} />
           <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           <SidebarNavItem to="/goals" label="Goals" icon={Target} />
           {showWorkspacesLink ? (
