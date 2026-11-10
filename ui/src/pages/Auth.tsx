@@ -4,35 +4,12 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
+import { PipeeloOfficeScene } from "@/components/PipeeloOfficeScene";
 
 type AuthMode = "sign_in" | "sign_up";
 
 const FIELD_CLASS =
   "w-full rounded-md border border-[#1E293B] bg-[#111827] px-4 py-3 text-[15px] text-[#F8FAFC] outline-none transition-colors placeholder:text-[#64748B] focus:border-[#00D2A0]";
-
-const PIPEELO_SPRITES = [
-  [
-    "    ▄▄██████▄     ",
-    "  ▄█████████ ██▄  ",
-    " ███████▀   █████ ",
-    "█████▀       █████",
-    "█████▀  ▀▄  ██████",
-    "█████       ██████",
-    " ████▄   ▄███████ ",
-    "  ▀█▀▄█████████▀  ",
-    "     ▀██████▀▀    ",
-  ],
-  [
-    "   ▄█████▄                                                    ",
-    " ▄█████▀▀▄██▄  ▄▄▄▄▄  ▄▄▄ ▄▄▄▄▄▄  ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄     ▄▄▄▄▄  ",
-    "████▀▀   ▀███  ██▀▀██ ███ ███▀██▄ ██▀▀▀  ██▀▀▀  ██    ███▀▀██▄",
-    "████     ████  ██▄███ ███ ███▄██▀ █████  █████  ██    ██    ██",
-    "████    ▄████  ██▀▀   ███ ███▀    ██▄▄▄  ██▄▄▄  ██▄▄▄ ▀██▄▄██▀",
-    " ▀██▄▄██████▀  ▀▀     ▀▀▀ ▀▀▀     ▀▀▀▀▀▀ ▀▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ",
-    "    █████▀▀                                                   ",
-  ],
-] as const;
 
 export function AuthPage() {
   const queryClient = useQueryClient();
@@ -207,7 +184,7 @@ export function AuthPage() {
           style={{ background: "radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, rgba(9, 14, 23, 0) 70%)" }}
         />
         <div className="absolute inset-0">
-          <AsciiArtAnimation sprites={PIPEELO_SPRITES} className="text-[#00D2A0]/55" />
+          <PipeeloOfficeScene />
         </div>
       </aside>
     </main>

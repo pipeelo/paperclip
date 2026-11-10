@@ -29,7 +29,7 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 | Item Vigias acima de Activity: abre a página `vigias` do plugin `pipeelo.porteiro` | `ui/src/components/Sidebar.tsx`, `lib/company-routes.ts` |
 | Total de tarefas por status: `GET /companies/:companyId/issues/status-counts` | `server/src/routes/issues.ts`, `issueService.countByStatus` |
 | Card do quadro muda de coluna na hora. Se o servidor recusa, o card volta | `ui/src/components/KanbanBoard.tsx`, `pages/Issues.tsx`, `pages/ProjectDetail.tsx` |
-| Login com o visual de treinamentos.pipeelo.com e textos em português | `ui/src/pages/Auth.tsx`, `ui/public/pipeelo-logo.webp` |
+| Login com o visual de treinamentos.pipeelo.com, textos em português e uma cena em pixel art (escritório em vista isométrica, desenhado em canvas) | `ui/src/pages/Auth.tsx`, `ui/src/components/PipeeloOfficeScene.tsx`, `ui/public/pipeelo-logo.webp` |
 | Menu lateral com "Minhas tarefas" (`/issues?minhas=1`) e "Todas as tarefas". Dentro de uma tarefa, o menu marca a lista de onde a pessoa veio | `ui/src/components/Sidebar.tsx`, `SidebarNavItem.tsx` |
 | Filtro `mine=true` na listagem e na contagem por status: tarefas em que a pessoa é responsável, revisora ou aprovadora, as que ela criou e não têm responsável (pessoa ou agente), as filhas e as mães. Tarefa oculta não conta. Só sessão de pessoa | `server/src/services/issues.ts` (`mineForUserId`), `routes/issues.ts`, `ui/src/pages/Issues.tsx`, `api/issues.ts` |
 | A tela de tarefas abre sempre em quadro (`initialViewMode="board"`) | `ui/src/pages/Issues.tsx`, `components/IssuesList.tsx` |

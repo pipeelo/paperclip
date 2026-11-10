@@ -27,7 +27,7 @@ const PAPERCLIP_SPRITES = [
   ],
 ] as const;
 
-type PaperclipSprite = readonly string[];
+type PaperclipSprite = (typeof PAPERCLIP_SPRITES)[number];
 
 interface Clip {
   x: number;
@@ -59,13 +59,7 @@ function spriteSize(sprite: PaperclipSprite): { width: number; height: number } 
   return { width, height: sprite.length };
 }
 
-export function AsciiArtAnimation({
-  sprites = PAPERCLIP_SPRITES,
-  className = "text-muted-foreground/60",
-}: {
-  sprites?: readonly PaperclipSprite[];
-  className?: string;
-} = {}) {
+export function AsciiArtAnimation() {
   const preRef = useRef<HTMLPreElement>(null);
   const frameRef = useRef<number | null>(null);
 
@@ -131,14 +125,12 @@ export function AsciiArtAnimation({
         }
       }
 
-      const widest = Math.max(...sprites.map((sprite) => spriteSize(sprite).width));
-      const tallest = Math.max(...sprites.map((sprite) => sprite.length));
-      const gapX = widest + 9;
-      const gapY = tallest + 5;
-      for (let baseRow = 1; baseRow < rows - tallest - 1; baseRow += gapY) {
+      const gapX = 18;
+      const gapY = 13;
+      for (let baseRow = 1; baseRow < rows - 9; baseRow += gapY) {
         const startX = Math.floor(baseRow / gapY) % 2 === 0 ? 2 : 10;
-        for (let baseCol = startX; baseCol < cols - widest - 1; baseCol += gapX) {
-          const sprite = sprites[(baseCol + baseRow) % sprites.length]!;
+        for (let baseCol = startX; baseCol < cols - 10; baseCol += gapX) {
+          const sprite = PAPERCLIP_SPRITES[(baseCol + baseRow) % PAPERCLIP_SPRITES.length]!;
           for (let sr = 0; sr < sprite.length; sr++) {
             const line = sprite[sr]!;
             for (let sc = 0; sc < line.length; sc++) {
@@ -159,7 +151,7 @@ export function AsciiArtAnimation({
     }
 
     function spawnClip() {
-      const sprite = sprites[Math.floor(Math.random() * sprites.length)]!;
+      const sprite = PAPERCLIP_SPRITES[Math.floor(Math.random() * PAPERCLIP_SPRITES.length)]!;
       const size = spriteSize(sprite);
       const edge = Math.random();
       let x = 0;
@@ -348,7 +340,7 @@ export function AsciiArtAnimation({
   return (
     <pre
       ref={preRef}
-      className={`w-full h-full m-0 p-0 overflow-hidden select-none leading-none ${className}`}
+      className="w-full h-full m-0 p-0 overflow-hidden text-muted-foreground/60 select-none leading-none"
       style={{ fontSize: "11px", fontFamily: "monospace" }}
       aria-hidden="true"
     />
