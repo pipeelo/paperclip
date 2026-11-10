@@ -7,12 +7,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "./Sidebar";
 
+const mockLocation = vi.hoisted(() => ({ pathname: "/PAP/issues", search: "", state: null as unknown, navActive: false }));
+
 const mockInstanceSettingsApi = vi.hoisted(() => ({
   getExperimental: vi.fn(),
 }));
 
 vi.mock("@/lib/router", () => ({
-  useLocation: () => ({ search: "" }),
+  useLocation: () => mockLocation,
   NavLink: ({ to, children, className, ...props }: {
     to: string;
     children: ReactNode;
@@ -20,7 +22,7 @@ vi.mock("@/lib/router", () => ({
   }) => (
     <a
       href={to}
-      className={typeof className === "function" ? className({ isActive: false }) : className}
+      className={typeof className === "function" ? className({ isActive: mockLocation.navActive }) : className}
       {...props}
     >
       {children}
@@ -163,6 +165,26 @@ describe("Sidebar", () => {
     const link = [...container.querySelectorAll("a")].find((anchor) => anchor.textContent === "Workspaces");
     expect(link?.getAttribute("href")).toBe("/workspaces");
 
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("keeps Minhas tarefas active on an issue opened from the mine list", async () => {
+    mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false });
+    Object.assign(mockLocation, {
+      pathname: "/PAP/issues/PAP-7",
+      navActive: true,
+      state: { issueDetailBreadcrumb: { label: "Minhas tarefas", href: "/PAP/issues?minhas=1" }, issueDetailSource: "issues" },
+    });
+    const root = await renderSidebar();
+
+    const classOf = (label: string) =>
+      [...container.querySelectorAll("a")].find((anchor) => anchor.textContent === label)?.className ?? "";
+    expect(classOf("Minhas tarefas")).toContain("bg-accent text-foreground");
+    expect(classOf("Todas as tarefas")).not.toContain("bg-accent text-foreground");
+
+    Object.assign(mockLocation, { pathname: "/PAP/issues", navActive: false, state: null });
     await act(async () => {
       root.unmount();
     });

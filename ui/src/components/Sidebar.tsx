@@ -24,6 +24,8 @@ import { useDialogActions } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { queryKeys } from "../lib/queryKeys";
+import { readIssueDetailBreadcrumb } from "../lib/issueDetailBreadcrumb";
+import { parseIssuePathIdFromPath } from "../lib/issue-reference";
 import { useInboxBadge } from "../hooks/useInboxBadge";
 import { Button } from "@/components/ui/button";
 import { PluginSlotOutlet } from "@/plugins/slots";
@@ -38,7 +40,12 @@ export function Sidebar() {
     queryFn: () => instanceSettingsApi.getExperimental(),
   });
   const showWorkspacesLink = experimentalSettings?.enableIsolatedWorkspaces === true;
-  const showingMine = new URLSearchParams(useLocation().search).has("minhas");
+  const location = useLocation();
+  const openIssuePathId = parseIssuePathIdFromPath(location.pathname);
+  const issuesListSearch = openIssuePathId
+    ? readIssueDetailBreadcrumb(openIssuePathId, location.state, location.search)?.href.split("?")[1] ?? ""
+    : location.search;
+  const showingMine = new URLSearchParams(issuesListSearch).has("minhas");
 
   const pluginContext = {
     companyId: selectedCompanyId,
