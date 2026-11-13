@@ -49,6 +49,7 @@ import type { PluginJobStore } from "./plugin-job-store.js";
 import type { PluginToolDispatcher } from "./plugin-tool-dispatcher.js";
 import type { PluginLifecycleManager } from "./plugin-lifecycle.js";
 import { pluginDatabaseService } from "./plugin-database.js";
+import { encaminharParaStreamBus, type PluginStreamBus } from "./plugin-stream-bus.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -233,6 +234,7 @@ export interface PluginRuntimeServices {
   toolDispatcher: PluginToolDispatcher;
   /** Lifecycle manager for state transitions and worker lifecycle events. */
   lifecycleManager: PluginLifecycleManager;
+  streamBus?: PluginStreamBus;
   /**
    * Factory that creates worker-to-host RPC handlers for a given plugin.
    *
@@ -1820,6 +1822,9 @@ export function pluginLoader(
         databaseNamespace,
         hostHandlers,
         autoRestart: true,
+        onStreamNotification: runtimeServices?.streamBus
+          ? encaminharParaStreamBus(runtimeServices.streamBus, pluginId)
+          : undefined,
         env: {
           PAPERCLIP_DEPLOYMENT_MODE: instanceInfo.deploymentMode ?? "",
           PAPERCLIP_DEPLOYMENT_EXPOSURE: instanceInfo.deploymentExposure ?? "",
