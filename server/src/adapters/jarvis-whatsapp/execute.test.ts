@@ -112,8 +112,13 @@ describe("jarvis_whatsapp adapter execute", () => {
     expect(result.errorMessage).toBe("deu ruim");
   });
 
-  it("estoura o tempo quando o run não fecha", async () => {
-    const baseUrl = await startServer((req, _body, res) => {
+  it("estoura o tempo quando o run não fecha e fecha o run no plugin", async () => {
+    const fims: string[] = [];
+    const baseUrl = await startServer((req, body, res) => {
+      if (req.url?.endsWith("/fim")) {
+        fims.push(body);
+        return json(res, 200, {});
+      }
       if (req.method === "POST") return json(res, 201, { runId: "run-1", status: "aberto" });
       return json(res, 200, { status: "aberto", resumo: null, logs: [] });
     });
@@ -124,6 +129,9 @@ describe("jarvis_whatsapp adapter execute", () => {
     expect(result.timedOut).toBe(true);
     expect(result.errorCode).toBe("timeout");
     expect(result.exitCode).toBeNull();
+    expect(fims.map((body) => JSON.parse(body))).toEqual([
+      { status: "falhou", resumo: "tempo esgotado: 1s sem fim da sessão" },
+    ]);
   });
 
   it("recusa wakeReason chat sem chamar o plugin", async () => {
@@ -158,7 +166,12 @@ describe("jarvis_whatsapp adapter execute", () => {
 
   it("termina com plugin_indisponivel após 12 erros seguidos no GET", async () => {
     let gets = 0;
-    const baseUrl = await startServer((req, _body, res) => {
+    const fims: string[] = [];
+    const baseUrl = await startServer((req, body, res) => {
+      if (req.url?.endsWith("/fim")) {
+        fims.push(body);
+        return json(res, 409, {});
+      }
       if (req.method === "POST") return json(res, 201, { runId: "run-1", status: "aberto" });
       gets += 1;
       return json(res, 502, { error: "fora" });
@@ -170,6 +183,25 @@ describe("jarvis_whatsapp adapter execute", () => {
     expect(gets).toBe(12);
     expect(result.errorCode).toBe("plugin_indisponivel");
     expect(result.exitCode).toBe(1);
+    expect(fims.map((body) => JSON.parse(body))).toEqual([{ status: "falhou", resumo: "plugin indisponível" }]);
+  });
+
+  it("escreve linha de keep-alive quando não há log novo", async () => {
+    let polls = 0;
+    const baseUrl = await startServer((req, _body, res) => {
+      if (req.method === "POST") return json(res, 201, { runId: "run-1", status: "aberto" });
+      polls += 1;
+      if (polls < 15) return json(res, 200, { status: "aberto", resumo: null, logs: [] });
+      return json(res, 200, { status: "ok", resumo: "ok", logs: [] });
+    });
+    const { ctx, logs } = buildCtx(baseUrl, { pollMs: 10, keepAliveMs: 50 });
+
+    await execute(ctx);
+
+    const keepAlives = logs.filter((line) => line.startsWith("aguardando a sessão do Jarvis do WhatsApp ("));
+    expect(keepAlives.length).toBeGreaterThanOrEqual(1);
+    expect(keepAlives[0]).toMatch(/^aguardando a sessão do Jarvis do WhatsApp \(\d+ min\)
+$/);
   });
 
   it("usa pluginKey configurado no caminho", async () => {
