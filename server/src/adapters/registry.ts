@@ -130,6 +130,7 @@ import { buildExternalAdapters } from "./plugin-loader.js";
 import { getDisabledAdapterTypes } from "../services/adapter-plugin-store.js";
 import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
+import { jarvisWhatsappAdapter } from "./jarvis-whatsapp/index.js";
 
 function readConfiguredCommand(config: Record<string, unknown>, fallback: string): string {
   const value = typeof config.command === "string" ? config.command.trim() : "";
@@ -490,6 +491,7 @@ function registerBuiltInAdapters() {
     hermesLocalAdapter,
     processAdapter,
     httpAdapter,
+    jarvisWhatsappAdapter,
   ]) {
     adaptersByType.set(adapter.type, adapter);
   }
