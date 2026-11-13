@@ -7,6 +7,8 @@ const DEFAULT_TIMEOUT_SEC = 5400;
 const DEFAULT_RETRY_DELAYS_MS = [2000, 5000];
 const MAX_POLL_ERRORS = 12;
 const REQUEST_TIMEOUT_MS = 15000;
+const HOST_TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled", "timed_out"]);
+const CANCELLED_MESSAGE = "run cancelado no Paperclip";
 const CHAT_DISABLED_MESSAGE = "O chat do Jarvis está desligado. Fale com o Jarvis pelo WhatsApp.";
 
 interface RunLog {
@@ -61,6 +63,15 @@ async function callPlugin(
   return res.json();
 }
 
+async function hostFinishedRun(url: string, authToken: string | undefined): Promise<boolean> {
+  try {
+    const run = (await callPlugin("GET", url, authToken)) as { status?: string };
+    return typeof run.status === "string" && HOST_TERMINAL_STATUSES.has(run.status);
+  } catch {
+    return false;
+  }
+}
+
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const { config, runId, agent, context, authToken, onLog } = ctx;
 
@@ -75,6 +86,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const retryDelays = readRetryDelays(config.retryDelaysMs);
   const runsUrl = `${baseUrl}/api/plugins/${encodeURIComponent(pluginKey)}/api/runs`;
   const runUrl = `${runsUrl}/${encodeURIComponent(runId)}`;
+  const hostRunUrl = `${baseUrl}/api/heartbeat-runs/${encodeURIComponent(runId)}`;
+  const finishUrl = `${runUrl}/fim`;
   const openBody = { runId, agentId: agent.id, agentName: agent.name, context };
 
   const openRun = async (): Promise<string | null> => {
@@ -135,6 +148,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         await onLog("stdout", `${entry.linha}\n`);
         lastSeq = entry.seq;
       }
+    }
+
+    if (snapshot.status === "aberto" && (await hostFinishedRun(hostRunUrl, authToken))) {
+      await callPlugin("POST", finishUrl, authToken, { status: "falhou", resumo: CANCELLED_MESSAGE }).catch(() => null);
+      return failure("cancelled", CANCELLED_MESSAGE);
     }
 
     if (snapshot.status === "ok") {
