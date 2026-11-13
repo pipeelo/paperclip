@@ -79,3 +79,14 @@ export function createPluginStreamBus(): PluginStreamBus {
     },
   };
 }
+
+export function encaminharParaStreamBus(bus: PluginStreamBus, pluginId: string) {
+  return (method: string, params: Record<string, unknown>): void => {
+    const channel = String(params.channel ?? "");
+    const companyId = String(params.companyId ?? "");
+    if (!channel) return;
+    if (method === "streams.emit") bus.publish(pluginId, channel, companyId, params.event, "message");
+    else if (method === "streams.open") bus.publish(pluginId, channel, companyId, {}, "open");
+    else if (method === "streams.close") bus.publish(pluginId, channel, companyId, {}, "close");
+  };
+}
