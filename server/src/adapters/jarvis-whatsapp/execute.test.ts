@@ -7,11 +7,16 @@ type Handler = (req: IncomingMessage, body: string, res: ServerResponse) => void
 
 const servers: Server[] = [];
 
-async function startServer(handler: Handler): Promise<string> {
+async function startServer(handler: Handler, hostStatus: () => string = () => "running"): Promise<string> {
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (chunk) => chunks.push(chunk));
-    req.on("end", () => handler(req, Buffer.concat(chunks).toString("utf8"), res));
+    req.on("end", () => {
+      if (req.url?.startsWith("/api/heartbeat-runs/")) {
+        return json(res, 200, { id: "run-1", status: hostStatus() });
+      }
+      handler(req, Buffer.concat(chunks).toString("utf8"), res);
+    });
   });
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -179,5 +184,29 @@ describe("jarvis_whatsapp adapter execute", () => {
     await execute(ctx);
 
     expect(urls[0]).toBe("/api/plugins/outro.plugin/api/runs");
+  });
+
+  it("para e fecha o run no plugin quando o host cancelou o run", async () => {
+    const calls: Array<{ method: string; url: string; body: string }> = [];
+    const baseUrl = await startServer(
+      (req, body, res) => {
+        calls.push({ method: req.method ?? "", url: req.url ?? "", body });
+        if (req.url?.endsWith("/fim")) return json(res, 409, { error: "já fechado" });
+        if (req.method === "POST") return json(res, 201, { runId: "run-1", status: "aberto" });
+        return json(res, 200, { status: "aberto", resumo: null, logs: [] });
+      },
+      () => "cancelled",
+    );
+    const { ctx } = buildCtx(baseUrl);
+
+    const result = await execute(ctx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.timedOut).toBe(false);
+    expect(result.errorCode).toBe("cancelled");
+    expect(result.errorMessage).toBe("run cancelado no Paperclip");
+    const fim = calls.find((call) => call.url === "/api/plugins/pipeelo.jarvis-eventos/api/runs/run-1/fim");
+    expect(fim?.method).toBe("POST");
+    expect(JSON.parse(fim?.body ?? "{}")).toEqual({ status: "falhou", resumo: "run cancelado no Paperclip" });
   });
 });
