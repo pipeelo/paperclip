@@ -6,6 +6,7 @@ const DEFAULT_POLL_MS = 5000;
 const DEFAULT_TIMEOUT_SEC = 5400;
 const DEFAULT_RETRY_DELAYS_MS = [2000, 5000];
 const MAX_POLL_ERRORS = 12;
+const DEFAULT_KEEP_ALIVE_MS = 20 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 15000;
 const HOST_TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled", "timed_out"]);
 const CANCELLED_MESSAGE = "run cancelado no Paperclip";
@@ -88,6 +89,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const runUrl = `${runsUrl}/${encodeURIComponent(runId)}`;
   const hostRunUrl = `${baseUrl}/api/heartbeat-runs/${encodeURIComponent(runId)}`;
   const finishUrl = `${runUrl}/fim`;
+  const keepAliveMs = Math.max(1, asNumber(config.keepAliveMs, DEFAULT_KEEP_ALIVE_MS));
+  const closeRunAsFailed = async (resumo: string) => {
+    await callPlugin("POST", finishUrl, authToken, { status: "falhou", resumo }).catch(() => null);
+  };
   const openBody = { runId, agentId: agent.id, agentName: agent.name, context };
 
   const openRun = async (): Promise<string | null> => {
@@ -110,12 +115,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   const deadline = Date.now() + timeoutMs;
+  const startedAt = Date.now();
+  let lastOutputAt = startedAt;
   let lastSeq = 0;
   let consecutiveErrors = 0;
 
   while (true) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
+      const timeoutSec = Math.round(timeoutMs / 1000);
+      await closeRunAsFailed(`tempo esgotado: ${timeoutSec}s sem fim da sessão`);
       return {
         exitCode: null,
         signal: null,
@@ -134,6 +143,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       consecutiveErrors += 1;
       if (consecutiveErrors >= MAX_POLL_ERRORS) {
         const detail = err instanceof Error ? err.message : String(err);
+        await closeRunAsFailed("plugin indisponível");
         return failure("plugin_indisponivel", `Plugin sem resposta após ${MAX_POLL_ERRORS} tentativas: ${detail}`);
       }
       if (err instanceof PluginHttpError && err.status === 404) {
@@ -147,12 +157,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       if (entry.seq > lastSeq) {
         await onLog("stdout", `${entry.linha}\n`);
         lastSeq = entry.seq;
+        lastOutputAt = Date.now();
       }
     }
 
     if (snapshot.status === "aberto" && (await hostFinishedRun(hostRunUrl, authToken))) {
-      await callPlugin("POST", finishUrl, authToken, { status: "falhou", resumo: CANCELLED_MESSAGE }).catch(() => null);
+      await closeRunAsFailed(CANCELLED_MESSAGE);
       return failure("cancelled", CANCELLED_MESSAGE);
+    }
+
+    if (snapshot.status === "aberto" && Date.now() - lastOutputAt >= keepAliveMs) {
+      const waitedMin = Math.round((Date.now() - startedAt) / 60000);
+      await onLog("stdout", `aguardando a sessão do Jarvis do WhatsApp (${waitedMin} min)\n`);
+      lastOutputAt = Date.now();
     }
 
     if (snapshot.status === "ok") {

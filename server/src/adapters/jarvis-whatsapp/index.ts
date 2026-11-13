@@ -17,5 +17,6 @@ Core fields:
 - pluginKey (string, optional): plugin key, default pipeelo.jarvis-eventos
 - pollMs (number, optional): poll interval in milliseconds, default 5000
 - timeoutSec (number, optional): maximum run duration in seconds, default 5400
+- keepAliveMs (number, optional): interval for a waiting log line when the session is silent, default 1200000
 `,
 };

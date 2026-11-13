@@ -200,8 +200,7 @@ describe("jarvis_whatsapp adapter execute", () => {
 
     const keepAlives = logs.filter((line) => line.startsWith("aguardando a sessão do Jarvis do WhatsApp ("));
     expect(keepAlives.length).toBeGreaterThanOrEqual(1);
-    expect(keepAlives[0]).toMatch(/^aguardando a sessão do Jarvis do WhatsApp \(\d+ min\)
-$/);
+    expect(keepAlives[0]).toMatch(/^aguardando a sessão do Jarvis do WhatsApp \(\d+ min\)\n$/);
   });
 
   it("usa pluginKey configurado no caminho", async () => {
