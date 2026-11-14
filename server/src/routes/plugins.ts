@@ -1375,7 +1375,7 @@ export function pluginRoutes(
    * - 501 if bridge deps or stream bus are not configured
    */
   router.get("/plugins/:pluginId/bridge/stream/:channel", async (req, res) => {
-    assertBoardOrgAccess(req);
+    if (req.actor.type !== "agent") assertBoardOrgAccess(req);
 
     if (!bridgeDeps?.streamBus) {
       res.status(501).json({ error: "Plugin stream bridge is not enabled" });
