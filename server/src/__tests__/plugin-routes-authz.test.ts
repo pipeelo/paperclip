@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -623,4 +625,105 @@ describe.sequential("plugin tool and bridge authz", () => {
     expect(res.body).toEqual({ runId: "run-1", jobId: "job-1" });
     expect(scheduler.triggerJob).toHaveBeenCalledWith("job-1", "manual");
   });
+});
+
+describe.sequential("plugin bridge stream authz", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function openStream(app: express.Express, companyId: string) {
+    const server = await new Promise<http.Server>((resolve) => {
+      const instance = app.listen(0, "127.0.0.1", () => resolve(instance));
+    });
+    try {
+      const port = (server.address() as AddressInfo).port;
+      return await new Promise<{ status: number; contentType: string | undefined }>((resolve, reject) => {
+        const req = http.get(
+          `http://127.0.0.1:${port}/api/plugins/${pluginId}/bridge/stream/eventos?companyId=${companyId}`,
+          (res) => {
+            resolve({ status: res.statusCode ?? 0, contentType: res.headers["content-type"] });
+            req.destroy();
+          },
+        );
+        req.on("error", (err) => {
+          if ((err as NodeJS.ErrnoException).code !== "ECONNRESET") reject(err);
+        });
+      });
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  }
+
+  function streamDeps() {
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn(() => unsubscribe);
+    return { subscribe, bridgeDeps: { workerManager: { call: vi.fn() }, streamBus: { subscribe } } };
+  }
+
+  it("mantém o acesso de usuário do board com a empresa", async () => {
+    readyPlugin();
+    const { subscribe, bridgeDeps } = streamDeps();
+    const { app } = await createApp(boardActor(), {}, { bridgeDeps });
+
+    const res = await openStream(app, companyA);
+
+    expect(res.status).toBe(200);
+    expect(res.contentType).toContain("text/event-stream");
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  }, 20_000);
+
+  it("recusa usuário do board de outra empresa", async () => {
+    readyPlugin();
+    const { subscribe, bridgeDeps } = streamDeps();
+    const { app } = await createApp(boardActor(), {}, { bridgeDeps });
+
+    const res = await openStream(app, companyB);
+
+    expect(res.status).toBe(403);
+    expect(subscribe).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("permite agente da mesma empresa", async () => {
+    readyPlugin();
+    const { subscribe, bridgeDeps } = streamDeps();
+    const { app } = await createApp(
+      { type: "agent", agentId: agentA, companyId: companyA, runId: runA, source: "agent_jwt" },
+      {},
+      { bridgeDeps },
+    );
+
+    const res = await openStream(app, companyA);
+
+    expect(res.status).toBe(200);
+    expect(res.contentType).toContain("text/event-stream");
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  }, 20_000);
+
+  it("recusa agente de outra empresa", async () => {
+    readyPlugin();
+    const { subscribe, bridgeDeps } = streamDeps();
+    const { app } = await createApp(
+      { type: "agent", agentId: agentA, companyId: companyA, source: "agent_key" },
+      {},
+      { bridgeDeps },
+    );
+
+    const res = await openStream(app, companyB);
+
+    expect(res.status).toBe(403);
+    expect(subscribe).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("recusa chamada sem autenticação", async () => {
+    readyPlugin();
+    const { subscribe, bridgeDeps } = streamDeps();
+    const { app } = await createApp({ type: "none", source: "none" }, {}, { bridgeDeps });
+
+    const res = await openStream(app, companyA);
+
+    expect([401, 403]).toContain(res.status);
+    expect(subscribe).not.toHaveBeenCalled();
+  }, 20_000);
 });
