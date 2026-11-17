@@ -60,6 +60,7 @@ export function IssueFiltersPopover({
   iconOnly = false,
   workspaces,
   creators,
+  hideLabels = false,
 }: {
   state: IssueFilterState;
   onChange: (patch: Partial<IssueFilterState>) => void;
@@ -73,7 +74,9 @@ export function IssueFiltersPopover({
   iconOnly?: boolean;
   workspaces?: WorkspaceOption[];
   creators?: CreatorOption[];
+  hideLabels?: boolean;
 }) {
+  const clearedState = hideLabels ? { ...defaultIssueFilterState, labels: state.labels } : defaultIssueFilterState;
   const [creatorSearch, setCreatorSearch] = useState("");
   const creatorOptions = creators ?? [];
   const creatorOptionById = useMemo(
@@ -118,7 +121,7 @@ export function IssueFiltersPopover({
               className="ml-1 hidden h-3 w-3 sm:block"
               onClick={(event) => {
                 event.stopPropagation();
-                onChange(defaultIssueFilterState);
+                onChange(clearedState);
               }}
             />
           ) : null}
@@ -135,7 +138,7 @@ export function IssueFiltersPopover({
               <button
                 type="button"
                 className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => onChange(defaultIssueFilterState)}
+                onClick={() => onChange(clearedState)}
               >
                 Clear
               </button>
@@ -308,7 +311,7 @@ export function IssueFiltersPopover({
             </div>
 
             <div className="min-w-0 space-y-3">
-              {labels && labels.length > 0 ? (
+              {!hideLabels && labels && labels.length > 0 ? (
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Labels</span>
                   <div className="max-h-32 space-y-0.5 overflow-y-auto">

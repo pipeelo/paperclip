@@ -54,6 +54,7 @@ import { EmptyState } from "./EmptyState";
 import { Identity } from "./Identity";
 import { IssueGroupHeader } from "./IssueGroupHeader";
 import { IssueFiltersPopover } from "./IssueFiltersPopover";
+import { IssueClientFilter } from "./IssueClientFilter";
 import { IssueRow } from "./IssueRow";
 import { PageSkeleton } from "./PageSkeleton";
 import { Button } from "@/components/ui/button";
@@ -1359,6 +1360,13 @@ export function IssuesList({
               onSearchChange?.(nextSearch);
             }}
           />
+          {labels && labels.length > 0 ? (
+            <IssueClientFilter
+              options={labels.map((label) => ({ id: label.id, name: label.name, color: label.color }))}
+              selected={viewState.labels}
+              onChange={(nextLabels) => updateView({ labels: nextLabels })}
+            />
+          ) : null}
         </div>
 
         <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
@@ -1409,9 +1417,10 @@ export function IssuesList({
           <IssueFiltersPopover
             state={viewState}
             onChange={updateView}
-            activeFilterCount={activeFilterCount}
+            activeFilterCount={activeFilterCount - (viewState.labels.length > 0 ? 1 : 0)}
             agents={agents}
             creators={creatorOptions}
+            hideLabels
             projects={projects?.map((project) => ({ id: project.id, name: project.name }))}
             labels={labels?.map((label) => ({ id: label.id, name: label.name, color: label.color }))}
             currentUserId={currentUserId}

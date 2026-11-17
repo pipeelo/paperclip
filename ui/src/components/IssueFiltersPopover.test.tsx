@@ -81,4 +81,28 @@ describe("IssueFiltersPopover", () => {
     expect(layoutGrid?.className).toContain("grid-cols-1");
     expect(popoverContent?.textContent).toContain("Live runs only");
   });
+
+  it("hideLabels tira as etiquetas do funil e o Clear mantém o cliente escolhido", () => {
+    const root = createRoot(container);
+    const onChange = vi.fn();
+    const state = { ...defaultIssueFilterState, labels: ["label-1"], statuses: ["todo"] };
+
+    act(() => {
+      root.render(
+        <IssueFiltersPopover
+          state={state}
+          onChange={onChange}
+          activeFilterCount={1}
+          labels={[{ id: "label-1", name: "Bug", color: "#ff0000" }]}
+          hideLabels
+        />,
+      );
+    });
+
+    const popoverContent = container.querySelector("[data-testid='popover-content']");
+    expect(popoverContent?.textContent).not.toContain("Labels");
+    const clear = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Clear");
+    act(() => clear?.click());
+    expect(onChange).toHaveBeenCalledWith({ ...defaultIssueFilterState, labels: ["label-1"] });
+  });
 });

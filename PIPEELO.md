@@ -35,6 +35,8 @@ Para listar: `git log --oneline --grep="(pipeelo)" main`.
 | A tela de tarefas abre sempre em quadro (`initialViewMode="board"`) | `ui/src/pages/Issues.tsx`, `components/IssuesList.tsx` |
 | Colunas personalizadas no quadro (botão Colunas). A lista mora em `instance_settings.general.boardColumns` (nome + status base), sem migração. O card fica na coluna quando tem a etiqueta com o nome dela e está no status base. Só admin da instância cria ou apaga. O total da coluna personalizada conta só os cards já carregados | `packages/shared/src/validators/instance.ts`, `types/instance.ts`, `server/src/services/instance-settings.ts`, `ui/src/components/KanbanBoard.tsx`, `BoardColumnsEditor.tsx`, `IssuesList.tsx` |
 
+| Filtro de cliente ao lado da busca na tela de tarefas: botão "Clientes" com campo "Buscar cliente..." (sem acento e sem maiúscula), vários clientes ao mesmo tempo. As etiquetas saem do funil só nessa tela (`hideLabels`); a Inbox fica igual | `ui/src/components/IssueClientFilter.tsx`, `IssueFiltersPopover.tsx`, `IssuesList.tsx` |
+
 ## Testes
 
 O PC local não aguenta o `pnpm install`. Rode os testes na imagem, no servidor:
