@@ -1650,10 +1650,10 @@ export function IssueDetail() {
     mutationFn: (id: string) => issuesApi.markRead(id),
     onSuccess: () => {
       if (selectedCompanyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listMineByMe(selectedCompanyId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(selectedCompanyId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedCompanyId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listMineByMe(selectedCompanyId) }, { cancelRefetch: false });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(selectedCompanyId) }, { cancelRefetch: false });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedCompanyId) }, { cancelRefetch: false });
+        queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId) }, { cancelRefetch: false });
       }
     },
   });

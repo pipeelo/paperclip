@@ -636,6 +636,21 @@ function invalidateActivityQueries(
   currentActor: { userId: string | null; agentId: string | null },
   options?: { pathname?: string; isForegrounded?: boolean },
 ) {
+  const readAction = readString(payload.action);
+  if (readAction === "issue.read_marked" || readAction === "issue.read_unmarked") {
+    if (readString(payload.actorType) === "user" && !!currentActor.userId && readString(payload.actorId) === currentActor.userId) {
+      for (const queryKey of [
+        queryKeys.issues.listMineByMe(companyId),
+        queryKeys.issues.listTouchedByMe(companyId),
+        queryKeys.issues.listUnreadTouchedByMe(companyId),
+        queryKeys.sidebarBadges(companyId),
+      ]) {
+        queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+      }
+    }
+    return;
+  }
+
   queryClient.invalidateQueries({ queryKey: queryKeys.activity(companyId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(companyId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });

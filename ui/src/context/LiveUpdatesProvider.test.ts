@@ -74,6 +74,45 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     });
   });
 
+  it("refreshes only the reader's inbox queries for read-marked events", () => {
+    const invalidations: unknown[] = [];
+    const queryClient = {
+      invalidateQueries: (input: unknown) => {
+        invalidations.push(input);
+      },
+      getQueryData: () => undefined,
+    };
+    const readEvent = (actorId: string) => ({
+      entityType: "issue",
+      entityId: "issue-1",
+      action: "issue.read_marked",
+      actorType: "user",
+      actorId,
+      details: null,
+    });
+
+    __liveUpdatesTestUtils.invalidateActivityQueries(
+      queryClient as never,
+      "company-1",
+      readEvent("user-2"),
+      { userId: "user-1", agentId: null },
+    );
+    expect(invalidations).toEqual([]);
+
+    __liveUpdatesTestUtils.invalidateActivityQueries(
+      queryClient as never,
+      "company-1",
+      readEvent("user-1"),
+      { userId: "user-1", agentId: null },
+    );
+    expect(invalidations).toEqual([
+      { queryKey: queryKeys.issues.listMineByMe("company-1") },
+      { queryKey: queryKeys.issues.listTouchedByMe("company-1") },
+      { queryKey: queryKeys.issues.listUnreadTouchedByMe("company-1") },
+      { queryKey: queryKeys.sidebarBadges("company-1") },
+    ]);
+  });
+
   it("still refreshes comments when a comment activity event arrives", () => {
     const invalidations: unknown[] = [];
     const queryClient = {
