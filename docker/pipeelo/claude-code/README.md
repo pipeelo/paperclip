@@ -2,9 +2,16 @@
 
 ## Regra
 
-Só quem está em `liberados` (`config.json`, hoje só o André) muda tool, função ou
-environment da Pipeelo por um agente do Paperclip. Pedido de qualquer outra pessoa
-(Lucas e todo membro sem dono) vira demanda atribuída ao André.
+Toda escrita de tool, função ou environment da Pipeelo por um agente do Paperclip passa
+pelo lint (ver "Lint"), para qualquer pessoa.
+
+Rota de um tenant só (`/v1/custom-command`, `/v1/function-calling`, `/v1/environment`
+e `/v1/tool` com `type` diferente de `LIBRARY` no corpo): qualquer pessoa grava, se o
+lint não barra.
+
+Rota global (`/v1/tool` LIBRARY ou sem `type` no corpo, `/api/admin/library-tools`): só
+quem está em `liberados` (`config.json`, hoje só o André) grava. Pedido de outra pessoa
+vira demanda atribuída ao André.
 
 "Mudar tool" = `POST`, `PUT`, `PATCH` ou `DELETE` num host `*.pipeelo.com` nestas rotas:
 
@@ -15,6 +22,22 @@ environment da Pipeelo por um agente do Paperclip. Pedido de qualquer outra pess
 - `/api/admin/library-tools` (admin)
 
 `/v1/tool-execute` e leitura (`GET`) continuam livres.
+
+## Lint
+
+O `fetch.cjs` lê o corpo da escrita e roda as regras abaixo. Regra que barra devolve o erro
+`PIPEELO_TRAVA_LINT` com a regra, o trecho achado e como corrigir. Aviso sai no stderr com o
+prefixo `PIPEELO_LINT_AVISO`.
+
+| regra | o que pega | efeito |
+|---|---|---|
+| 1 | o script lê KB (`/knowledge-base`) | barra |
+| 2 | um campo do schema com `enum` que mistura leitura (consultar, listar...) e escrita (agendar, criar...) | barra |
+| 3 | função de leitura (`consultar_`, `buscar_`, `verificar_`, `listar_`) devolve `agenda`, `tecnico`, `fila`, `departamento`, `slug` e afins | barra |
+| 4 | lista literal com 5+ nomes em maiúsculas no script | avisa |
+| 5 | nome da função sem verbo de leitura ou de escrita | avisa |
+
+Exceção: item em `excecoesLint` do `config.json` (`funcao`, `regra`, `motivo`). Só o André edita.
 
 ## Quem pediu
 
@@ -31,9 +54,9 @@ Se a API não responde, o run fica restrito.
 
 ## Camadas
 
-1. `hook.cjs`: hook `PreToolUse` do Claude Code no `Bash`. Barra `curl`, `python`,
-   script da skill (`update-tool-script.js`) e qualquer comando que mexa em `NODE_OPTIONS`.
-   Também lê o script `.js/.py/.sh/.ts` que o comando roda.
+1. `hook.cjs`: hook `PreToolUse` do Claude Code no `Bash`. Barra sempre `curl`, `python`
+   e script `.py/.sh` que gravam nessas rotas: a escrita vai pela skill com node, para passar
+   pelo lint. Barra, em run restrito, comando que mexa em `NODE_OPTIONS`.
 2. `fetch.cjs`: carregado por `NODE_OPTIONS=--require` em todo `node` do agente. Barra a
    chamada em `fetch`, `http.request` e `https.request`, mesmo com URL montada.
 
@@ -54,7 +77,6 @@ passa pela camada de texto do comando que o roda, não pela do `curl` em si.
 
 ## Como gerar e implantar
 
-1. `node core/trava-tools/gerar-dockerfile.mjs [imagem]` gera `core/trava-tools/Dockerfile`
-   com o patch do `parar-tudo` e a trava.
-2. Cole o Dockerfile no serviço `pipeelo/paperclip` do Easypanel (fonte Dockerfile) e implante.
-3. Teste: `node --test core/trava-tools/trava.test.cjs`.
+1. Teste: `node --test docker/pipeelo/claude-code/pipeelo-trava/`.
+2. O `Dockerfile` da raiz copia a trava para `/etc/claude-code`. O Easypanel monta do `main`
+   (ver `PIPEELO.md`).

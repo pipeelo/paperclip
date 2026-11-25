@@ -8,3 +8,5 @@ coverage
 data
 tmp
 *.log
+docker/pipeelo/claude-code/pipeelo-trava/__fixtures__
+docker/pipeelo/claude-code/pipeelo-trava/*.test.cjs

@@ -4,5 +4,8 @@
   "prefixoChat": "plugin:pipeelo.chat:session:",
   "pastaChat": "/paperclip/.claude/chat",
   "painelUrl": "https://pipeelo-paperclip.zhh0vo.easypanel.host",
-  "prefixo": "PIP"
+  "prefixo": "PIP",
+  "excecoesLint": [
+    { "funcao": "custom_consultar_area_do_endereco", "regra": 1, "motivo": "lê o mapa GeoJSON (dado geográfico), não regra de decisão" }
+  ]
 }

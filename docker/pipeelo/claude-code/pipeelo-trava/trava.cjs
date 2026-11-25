@@ -14,6 +14,15 @@ const SO_PAPERCLIP = /(PAPERCLIP_API_URL|easypanel\.host)/;
 const HOST_NO_TEXTO = /pipeelo\.com/i;
 const MUDANCA_NO_TEXTO = /(-X\s*['"]?(PUT|POST|PATCH|DELETE)\b|--request[\s=]+['"]?(PUT|POST|PATCH|DELETE)\b|method['"]?\s*[:=]\s*['"](PUT|POST|PATCH|DELETE)['"]|\.(put|post|patch|delete)\s*\(|\s(-d|--data[\w-]*|--json|-F|--form)[\s=]|update-tool-script)/i;
 const MEXE_NA_TRAVA = /(NODE_OPTIONS|--require\b|\s-r\s+\S+\.c?js)/;
+const CLIENTE_DIRETO = /\b(curl|wget|python[\d.]*)\b/i;
+const ROTA_GLOBAL = /^\/(v1\/tools?(\/|$)|api\/admin\/library-tools(\/|$))/i;
+const LEITURA = ["consultar", "listar", "buscar", "verificar", "ver"];
+const ESCRITA = ["agendar", "criar", "cadastrar", "atualizar", "alterar", "cancelar", "abrir", "excluir", "registrar"];
+const LE_KB = /\/knowledge[-_]base\b|\bknowledge[-_]base\//i;
+const OBJETO_DEVOLVIDO = /(?:\breturn\b|JSON\.stringify\()\s*\(?\s*\{([^{}]*)/g;
+const CHAVE_DE_DECISAO = /(?:^|,)\s*['"]?(agenda|id_agenda|tecnico|id_tecnico|id_tecnico_gestor|fila|departamento|slug)['"]?\s*(?::|,|$)/;
+const NOME_EM_MAIUSCULAS = /^[A-ZÀ-Ý][A-ZÀ-Ý ]{2,}$/;
+const PALAVRA_TECNICA = new Set(["NULL", "TRUE", "FALSE", "UNDEFINED", "GET", "POST", "PUT", "PATCH", "DELETE", "ERRO", "SIM", "NAO", "NÃO", "ATIVO", "INATIVO", "ATIVA", "INATIVA", "SUSPENSO", "CANCELADO", "BLOQUEADO", "PENDENTE", "ABERTO", "FECHADO", "ABERTA", "FECHADA", "PAGO", "VENCIDO", "ACTIVE", "INACTIVE", "PENDING", "OPEN", "CLOSED"]);
 const ARQUIVO_NO_COMANDO = /(?:^|[\s'"=])((?:~|\.{1,2}|\/)?[\w@.\/~+-]*\.(?:m?js|cjs|ts|py|sh))(?=$|[\s'";|&)])/g;
 
 function lerConfig() {
@@ -46,10 +55,13 @@ function arquivosDoComando(comando, cwd, home) {
   return [...achados];
 }
 
-function comandoSuspeito(comando, { cwd, home, ler = (p) => fs.readFileSync(p, "utf8") } = {}) {
+function comandoSuspeito(comando) {
+  return MEXE_NA_TRAVA.test(String(comando || "")) ? "o comando mexe na trava de tools" : null;
+}
+
+function escritaDireta(comando, { cwd, home, ler = (p) => fs.readFileSync(p, "utf8") } = {}) {
   const texto = String(comando || "");
-  if (MEXE_NA_TRAVA.test(texto)) return "o comando mexe na trava de tools";
-  if (textoMudaTool(texto)) return "o comando altera tool, função ou environment";
+  if (textoMudaTool(texto) && CLIENTE_DIRETO.test(texto)) return "o comando grava tool, função ou environment por curl ou python";
   for (const arquivo of arquivosDoComando(texto, cwd, home)) {
     let conteudo;
     try {
@@ -58,9 +70,111 @@ function comandoSuspeito(comando, { cwd, home, ler = (p) => fs.readFileSync(p, "
     } catch {
       continue;
     }
-    if (textoMudaTool(conteudo)) return `o script ${arquivo} altera tool, função ou environment`;
+    if (textoMudaTool(conteudo) && (/\.(py|sh)$/i.test(arquivo) || CLIENTE_DIRETO.test(conteudo))) {
+      return `o script ${arquivo} grava tool, função ou environment por curl ou python`;
+    }
   }
   return null;
+}
+
+function lerCorpo(texto) {
+  try {
+    const o = JSON.parse(texto);
+    if (o && typeof o === "object") return o;
+  } catch {}
+  return { script: String(texto || "") };
+}
+
+function rotaGlobal(url, texto) {
+  const caminho = new URL(String(url)).pathname;
+  if (!ROTA_GLOBAL.test(caminho)) return false;
+  return /^\/api\//i.test(caminho) || String(lerCorpo(texto).type || "LIBRARY").toUpperCase() === "LIBRARY";
+}
+
+function comecaCom(palavra, verbos) {
+  const p = String(palavra || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return verbos.some((v) => p === v || p.startsWith(`${v}_`));
+}
+
+function linhaDe(texto, i) {
+  const fim = texto.indexOf("\n", i);
+  return texto.slice(texto.lastIndexOf("\n", i) + 1, fim < 0 ? undefined : fim).trim().slice(0, 160);
+}
+
+function nomesEmMaiusculas(lista) {
+  return lista.map((s) => s.trim()).filter((s) => NOME_EM_MAIUSCULAS.test(s) && !PALAVRA_TECNICA.has(s));
+}
+
+function dentroDeFuncaoInterna(script) {
+  const principais = new Set([...(script.match(/^return\b[^\n]*/m)?.[0] || "").matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]));
+  const pilha = [];
+  const marca = new Uint8Array(script.length);
+  for (let i = 0; i < script.length; i++) {
+    marca[i] = pilha.includes(true) ? 1 : 0;
+    if (script[i] === "}") pilha.pop();
+    if (script[i] !== "{") continue;
+    const antes = script.slice(Math.max(0, i - 200), i);
+    const declarada = antes.match(/\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)[^{;]*$/);
+    const iife = pilha.length === 0 && /^\s*return\s*\(\s*(async\s*)?(\(\s*\)\s*=>|function\s*\(\s*\))\s*$/m.test(antes.split("\n").pop());
+    pilha.push(/=>\s*$|\bfunction\b[^{]*$/.test(antes) && !iife && !(declarada && principais.has(declarada[1])));
+  }
+  return marca;
+}
+
+function lintar(texto, config = lerConfig()) {
+  const corpo = lerCorpo(texto);
+  const funcao = corpo.function_calling || {};
+  const nome = String(funcao.name || corpo.name || "");
+  const curto = nome.replace(/^custom_/i, "");
+  const script = typeof corpo.script === "string" ? corpo.script : "";
+  const achados = [];
+
+  const kb = script.match(LE_KB);
+  if (kb) {
+    achados.push({ regra: 1, barra: true, texto: `Regra 1 (o script lê KB): achei \`${linhaDe(script, kb.index)}\`. Corrija: o script não lê KB. A regra de decisão fica no prompt do agente. Dado fixo fica no próprio script ou num environment.` });
+  }
+
+  for (const [campo, def] of Object.entries((funcao.parameters || corpo.parameters || {}).properties || {})) {
+    const valores = Array.isArray(def?.enum) ? def.enum : [];
+    if (valores.some((v) => comecaCom(v, LEITURA)) && valores.some((v) => comecaCom(v, ESCRITA))) {
+      achados.push({ regra: 2, barra: true, texto: `Regra 2 (uma função lê e grava): o campo \`${campo}\` aceita ${JSON.stringify(valores)}. Corrija: separe em duas funções, uma de leitura (consultar_...) e uma de escrita (agendar_...).` });
+    }
+  }
+
+  if (comecaCom(curto, ["consultar", "buscar", "verificar", "listar"])) {
+    const interna = dentroDeFuncaoInterna(script);
+    for (const m of script.matchAll(OBJETO_DEVOLVIDO)) {
+      const chave = m[1].match(CHAVE_DE_DECISAO);
+      if (!chave || interna[m.index]) continue;
+      achados.push({ regra: 3, barra: true, texto: `Regra 3 (função de leitura devolve decisão): achei a chave \`${chave[1]}\` em \`${linhaDe(script, m.index)}\`. Corrija: a função de leitura devolve só fatos. Quem escolhe agenda, técnico, fila ou departamento é o agente (prompt) ou a função de escrita.` });
+      break;
+    }
+  }
+
+  const listas = [
+    ...[...script.matchAll(/\[([^[\]]*)\]/g)].map((m) => nomesEmMaiusculas([...m[1].matchAll(/(['"`])((?:(?!\1)[^\\\n])*)\1/g)].map((s) => s[2]))),
+    ...[...script.matchAll(/\{([^{}]*)\}/g)].map((m) => nomesEmMaiusculas([...m[1].matchAll(/(?:^|[,\s])(['"]?)([^'"\n,:{}]+)\1\s*:/g)].map((s) => s[2]))),
+  ];
+  const grande = listas.find((l) => l.length >= 5);
+  if (grande) {
+    achados.push({ regra: 4, barra: false, texto: `Regra 4 (lista grande de nomes no script): ${grande.length} nomes (${grande.slice(0, 5).join(", ")}...). Lista de nomes que muda com o tempo fica fora do script.` });
+  }
+
+  if (nome && !comecaCom(curto, [...LEITURA, ...ESCRITA])) {
+    achados.push({ regra: 5, barra: false, texto: `Regra 5 (nome sem verbo claro): ${nome}. Comece o nome por um verbo de leitura (${LEITURA.join("_, ")}_) ou de escrita (${ESCRITA.join("_, ")}_).` });
+  }
+
+  const excecoes = config.excecoesLint || [];
+  const valem = achados.filter((a) => !excecoes.some((e) => e.funcao === nome && Number(e.regra) === a.regra));
+  return { nome, erros: valem.filter((a) => a.barra), avisos: valem.filter((a) => !a.barra) };
+}
+
+function avisoDeLint(lint, oQue, config = lerConfig()) {
+  return [
+    `BLOQUEADO pelo lint da trava: ${oQue}${lint.nome ? ` (${lint.nome})` : ""}.`,
+    ...lint.erros.map((e) => e.texto),
+    `Corrija e grave de novo pela skill com node. Exceção a uma regra só ${config.responsavel.nome} dá (excecoesLint no config.json).`,
+  ].join("\n");
 }
 
 function idsDoTexto(texto) {
@@ -145,7 +259,7 @@ function avisoDeBloqueio(quem, oQue, config = lerConfig()) {
   return [
     `BLOQUEADO pela trava de tools: ${oQue}.`,
     `Motivo: ${quem.motivo}${nomes.length ? ` (${[...new Set(nomes)].join(", ")})` : ""}.`,
-    `Só ${responsavel} muda tool, função ou environment da Pipeelo. Não tente outro caminho (curl, python, script novo, painel).`,
+    `Só ${responsavel} muda tool global (LIBRARY) da Pipeelo. Não tente outro caminho (curl, python, script novo, painel).`,
     "Faça assim:",
     `1. Escreva com a ferramenta Write um arquivo .md com o pedido, a causa achada, a mudança proposta e a tool com a versão.`,
     `2. Abra a demanda para ${responsavel}: node ${path.join(PASTA, "demanda.cjs")} --titulo "<tenant>: <o que mudar>" --arquivo <caminho do .md>`,
@@ -161,6 +275,10 @@ module.exports = {
   mudaTool,
   textoMudaTool,
   comandoSuspeito,
+  escritaDireta,
+  rotaGlobal,
+  lintar,
+  avisoDeLint,
   pessoaDoChat,
   idsDoTexto,
   quemPediu,

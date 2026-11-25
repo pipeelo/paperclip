@@ -1,11 +1,19 @@
 "use strict";
 
-const { comandoSuspeito, quemPediu, avisoDeBloqueio } = require("./trava.cjs");
+const { comandoSuspeito, escritaDireta, quemPediu, avisoDeBloqueio } = require("./trava.cjs");
 
 async function decidir(entrada, opcoes = {}) {
   if (entrada.tool_name !== "Bash") return null;
   const comando = entrada.tool_input?.command || "";
-  const suspeita = comandoSuspeito(comando, { cwd: entrada.cwd, home: process.env.HOME });
+  const direta = escritaDireta(comando, { cwd: entrada.cwd, home: process.env.HOME });
+  if (direta) {
+    return [
+      `BLOQUEADO pela trava de tools: ${direta}.`,
+      "Grave pela skill com node (ex.: update-tool-script.js). Assim o lint confere o que vai ser gravado.",
+      "Leitura (GET) e /v1/tool-execute seguem livres.",
+    ].join("\n");
+  }
+  const suspeita = comandoSuspeito(comando);
   if (!suspeita) return null;
   const quem = await quemPediu(opcoes);
   if (!quem.restrito) return null;
